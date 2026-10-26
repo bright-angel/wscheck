@@ -76,6 +76,9 @@ BATCH_MIN_WALL = 90
 ENGINE_BUSY_PREFIX = "POC 引擎被其他任务占用"
 DEADLINE_PREFIX = "任务已达到超时上限"
 MAX_EVIDENCE_CHARS = 4000
+# 交互执行是用户主动查看单次结果，沿用 4000 字会把命令回显、文件内容截掉大半；
+# 扫描证据仍按 MAX_EVIDENCE_CHARS 落库，避免每个目标都存一份大文本
+MAX_ACTION_CHARS = 64 * 1024
 # pocsuite3 的"未命中"也是一条 fail 记录，且各 POC 文案不统一（Target is not vulnerable /
 # not vulnerability / Internet noting return …），这类不算执行异常
 _MISS_PATTERNS = (
@@ -484,7 +487,7 @@ def execute_once(target: str, poc_file: str, mode: str = "attack",
     # 引擎日志来自 pocsuite3 的工作线程，那里没有应用上下文，只能在这里并回错误说明里
     if outcome.error and engine_lines:
         hints = "；".join(message for message, _ in engine_lines[:3])
-        outcome.error = _truncate(f"{outcome.error}（POC 引擎：{hints}）")
+        outcome.error = _truncate(f"{outcome.error}（POC 引擎：{hints}）", MAX_ACTION_CHARS)
     return outcome
 
 
@@ -502,7 +505,12 @@ def _execute_locked(target: str, poc_file: str, mode: str, options: dict,
         except ImportError as error:
             outcome.error = f"pocsuite3 不可用: {error}"
             return outcome
-        outcome = _run_single(target, kb, conf, mode, options)
+        # 交互执行失败时也要保留报文，否则弹窗里只剩 POC 自己的一句结论
+        httptrace.keep_all(True)
+        try:
+            outcome = _run_single(target, kb, conf, mode, options, MAX_ACTION_CHARS)
+        finally:
+            httptrace.keep_all(False)
     except SystemExit as error:
         outcome.error = f"POC 依赖或必填参数检查失败: {error}"
     except BaseException as error:
@@ -513,7 +521,8 @@ def _execute_locked(target: str, poc_file: str, mode: str, options: dict,
     return outcome
 
 
-def _run_single(target: str, kb, conf, mode: str, options: dict) -> PocOutcome:
+def _run_single(target: str, kb, conf, mode: str, options: dict,
+                max_chars: int = MAX_EVIDENCE_CHARS) -> PocOutcome:
     registered = list(kb.registered_pocs.values())
     if not registered:
         return PocOutcome(target=target, error="POC 加载失败：文件语法错误或没有 POCBase 子类")
@@ -539,10 +548,10 @@ def _run_single(target: str, kb, conf, mode: str, options: dict) -> PocOutcome:
         app_name=str(getattr(output, "app_name", "") or ""),
         status="success" if success else "failed",
         success=success,
-        result=_plain(dict(output.result or {})),
-        error=_truncate(str(error)),
+        result=_plain(dict(output.result or {}), max_chars),
+        error=_truncate(str(error), max_chars),
         noise=is_network_noise(error),
-        exchanges=_plain(getattr(output, "wscheck_exchanges", None) or []),
+        exchanges=_plain(getattr(output, "wscheck_exchanges", None) or [], max_chars),
     )
 
 
@@ -596,17 +605,18 @@ def _error_text(value) -> str:
     return str(value)
 
 
-def _plain(value):
+def _plain(value, limit: int = MAX_EVIDENCE_CHARS):
     if isinstance(value, dict):
-        return {str(k): _plain(v) for k, v in value.items()}
+        return {str(k): _plain(v, limit) for k, v in value.items()}
     if isinstance(value, (list, tuple, set)):
-        return [_plain(v) for v in value]
+        return [_plain(v, limit) for v in value]
     if isinstance(value, bytes):
-        return value[:MAX_EVIDENCE_CHARS].decode("utf-8", "replace")
+        text = value[:limit].decode("utf-8", "replace")
+        return text if len(value) <= limit else text + "…（已截断）"
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     return str(value)
 
 
-def _truncate(text: str) -> str:
-    return text if len(text) <= MAX_EVIDENCE_CHARS else text[:MAX_EVIDENCE_CHARS] + "…（已截断）"
+def _truncate(text: str, limit: int = MAX_EVIDENCE_CHARS) -> str:
+    return text if len(text) <= limit else text[:limit] + "…（已截断）"

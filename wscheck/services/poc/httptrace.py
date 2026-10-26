@@ -9,8 +9,10 @@ requests 的 HTTPAdapter.send 上就能拿到每一次实际发送的请求与�
 HTTPAdapter.send 每次只负责一跳，时间和状态码都与实际收发一致。
 
 pocsuite3 批量执行时 POC 跑在引擎自己的线程池里，只有包住 POCBase.execute
-才能把捕获结果挂回这条 target×poc 的 Output。仅在判定成功时保留报文：
+才能把捕获结果挂回这条 target×poc 的 Output。批量扫描仅在判定成功时保留报文：
 kb.results 会保存所有目标的执行记录，未命中的报文对结果页没有价值。
+交互执行（结果页 attack / 命令控制台）由调用方打开 keep_all，失败时也保留，
+否则只能看到 POC 的一句报错，看不到目标实际返回了什么。
 """
 
 from __future__ import annotations
@@ -31,8 +33,17 @@ MAX_HEADER_CHARS = 400
 _local = threading.local()
 _install_lock = threading.Lock()
 _installed = False
+_keep_all = False
+_keep_lock = threading.Lock()
 _base_send = requests.adapters.HTTPAdapter.send
 _base_execute = None
+
+
+def keep_all(enabled: bool = True) -> None:
+    """交互执行时保留未命中的报文；POC 执行由 runner 的 RUN_LOCK 串行化。"""
+    global _keep_all
+    with _keep_lock:
+        _keep_all = enabled
 
 
 def install() -> None:
@@ -76,7 +87,7 @@ def _execute_with_capture(self, *args, **kwargs):
         exchanges = _end(previous)
     if output is not None and exchanges:
         try:
-            if output.is_success():
+            if _keep_all or output.is_success():
                 output.wscheck_exchanges = exchanges
         except Exception:
             pass

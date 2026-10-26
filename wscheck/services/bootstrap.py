@@ -32,11 +32,15 @@ POC_REGISTRY_COLUMNS = {
 TARGET_ASSET_COLUMNS = {
     "dir_hits": "JSON",
 }
+POC_ACTION_COLUMNS = {
+    "exchanges": "JSON",
+}
 
 
 def prepare_storage(app) -> None:
     upgraded = _upgrade_columns("poc_registry", POC_REGISTRY_COLUMNS)
     upgraded += _upgrade_columns("target_assets", TARGET_ASSET_COLUMNS)
+    upgraded += _upgrade_columns("poc_actions", POC_ACTION_COLUMNS)
     seeded = _seed_fingerprints(app)
     rules_synced = _auto_sync_rules(app)
     synced = _auto_sync_pocs(app)

@@ -15,9 +15,8 @@ MAX_PACKET_BODY = 6000
 
 
 def exchanges(evidence) -> list[dict]:
-    if not isinstance(evidence, dict):
-        return []
-    items = evidence.get("http")
+    """扫描结果的 evidence 是 {"http": [...]}，交互执行直接存报文列表，两种都接受。"""
+    items = evidence.get("http") if isinstance(evidence, dict) else evidence
     if not isinstance(items, list):
         return []
     return [item for item in items if isinstance(item, dict)]

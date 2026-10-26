@@ -467,12 +467,15 @@
         const command = document.createElement("div");
         command.textContent = "$ " + formatCommand(entry);
         const body = document.createElement("div");
-        body.textContent = entry.error
-          ? entry.error
-          : (Object.keys(entry.output || {}).length
-             ? JSON.stringify(entry.output, null, 2)
-             : "POC 未返回内容");
+        const chunks = [];
+        if (entry.error) chunks.push(entry.error);
+        if (Object.keys(entry.output || {}).length) {
+          chunks.push(JSON.stringify(entry.output, null, 2));
+        }
+        body.textContent = chunks.length ? chunks.join("\n\n") : "POC 未返回内容";
         block.append(head, command, body);
+        const packets = packetDetails(entry.packets);
+        if (packets) block.append(packets);
         outputBox.appendChild(block);
       });
       outputBox.scrollTop = outputBox.scrollHeight;
@@ -484,6 +487,24 @@
         window.alert("Bootstrap 脚本未加载，交互执行窗口不可用。请检查网络或改用离线部署。");
       }
     });
+  }
+
+  function packetDetails(packets) {
+    if (!packets || !packets.length) return null;
+    const details = document.createElement("details");
+    details.className = "mt-2";
+    const summary = document.createElement("summary");
+    summary.className = "small text-muted";
+    summary.textContent = "HTTP 报文 · " + packets.length
+      + " 次请求/响应（POC 输出被截断时可在这里查看原始内容）";
+    const pre = document.createElement("pre");
+    pre.className = "evidence evidence-sm mt-2 mb-0";
+    pre.textContent = packets.map(function (packet) {
+      return "===== 请求 " + packet.index + "/" + packet.total + " =====\n" + packet.request
+        + "\n\n===== 响应 " + packet.index + "/" + packet.total + " =====\n" + packet.response;
+    }).join("\n\n");
+    details.append(summary, pre);
+    return details;
   }
 
   function readJson(response) {

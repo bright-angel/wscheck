@@ -193,6 +193,8 @@ class PocAction(db.Model):
     options: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(16), default="failed")
     output: Mapped[dict] = mapped_column(JSON, default=dict)
+    # POC 自己经常把 result 里的正文截断，这里保留执行期间实际收发的报文供对照
+    exchanges: Mapped[list] = mapped_column(JSON, default=list)
     error: Mapped[str] = mapped_column(Text, default="")
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

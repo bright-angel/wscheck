@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from ..extensions import db
 from ..models import PocAction, PocRegistry, ScanFinding, TaskLog
-from ..services import normalize, settings
+from ..services import evidence, normalize, settings
 from ..services.poc import runner
 from ..timeutil import fmt_dt, session_tz, utcnow
 from .common import get_or_404
@@ -100,6 +100,7 @@ def _record(finding: ScanFinding, registry: PocRegistry, mode: str, options: dic
         options=options,
         status="success" if outcome.success else "failed",
         output=outcome.result,
+        exchanges=list(outcome.exchanges or []),
         error=outcome.error,
         duration_ms=outcome.duration_ms,
         created_at=utcnow(),
@@ -132,6 +133,9 @@ def _action_payload(action: PocAction) -> dict:
         "options": action.options or {},
         "status": action.status,
         "output": action.output or {},
+        # POC 的 result 可能被脚本自身截断（例如只保留响应前 4000 字符），
+        # 报文里是实际收发的请求与响应，用来补全判定依据
+        "packets": evidence.packets(action.exchanges or []),
         "error": action.error,
         "duration_ms": action.duration_ms,
         "created_at": fmt_dt(action.created_at, session_tz()),
