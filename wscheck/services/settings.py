@@ -598,31 +598,40 @@ def _test_interactsh(server: str, proxies: dict) -> tuple[bool, str]:
     except OSError:
         return False, f"{server} 未提供泛解析（{sample} 无法解析），POC 拿不到回调子域"
     try:
-        response = requests.post(f"http://{server}/register",
-                                 headers={"Content-Type": "application/json"},
-                                 json={"public-key": "", "secret-key": "wscheck", "correlation-id": sample[:20]},
-                                 proxies=proxies, timeout=DEFAULT_PROXY_TIMEOUT)
+        with requests.Session() as http:
+            response = webfetch.request(
+                http, "POST", f"http://{server}/register",
+                headers={"Content-Type": "application/json"},
+                json={"public-key": "", "secret-key": "wscheck", "correlation-id": sample[:20]},
+                proxies=proxies, timeout=DEFAULT_PROXY_TIMEOUT)
+            status = response.status_code
+            text = response.text
     except requests.RequestException as error:
         return False, f"{server} 可解析但 /register 请求失败：{type(error).__name__}"
-    if response.status_code == 401:
+    if status == 401:
         return False, f"{server} 要求鉴权，请填写 interactsh Token"
-    if "success" not in response.text:
-        return True, f"{server} 可解析，/register 返回 {response.status_code}（非标准响应，仍可使用）"
+    if "success" not in text:
+        return True, f"{server} 可解析，/register 返回 {status}（非标准响应，仍可使用）"
     return True, f"{server} 可用，回调示例子域 {sample}"
 
 
 def _test_ceye(token: str, proxies: dict) -> tuple[bool, str]:
     try:
-        response = requests.get(f"{CEYE_API}/identify", headers={"Authorization": token, "User-Agent": "curl/7.80.0"},
-                                proxies=proxies, timeout=DEFAULT_PROXY_TIMEOUT)
+        with requests.Session() as http:
+            # 不走 requests.get：POC 执行期间它会被 pocsuite3 的 hook 接管，带上 POC 的代理
+            response = webfetch.request(
+                http, "GET", f"{CEYE_API}/identify",
+                headers={"Authorization": token, "User-Agent": "curl/7.80.0"},
+                proxies=proxies, timeout=DEFAULT_PROXY_TIMEOUT)
+            status = response.status_code
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = None
     except requests.RequestException as error:
         return False, f"api.ceye.io 请求失败：{type(error).__name__}"
-    if response.status_code != 200:
-        return False, f"CEye 返回 {response.status_code}，token 可能无效"
-    try:
-        payload = response.json()
-    except ValueError:
-        payload = None
+    if status != 200:
+        return False, f"CEye 返回 {status}，token 可能无效"
     if not isinstance(payload, dict):
         return False, "CEye 返回 200 但内容不是 JSON，无法验证 token（请求可能被代理或网关拦截）"
     data = payload.get("data")

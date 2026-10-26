@@ -290,8 +290,11 @@ Python 无法强杀线程，卡住的 POC 会继续占用 POC 引擎，此时后
   `socket.socket`（配 SOCKS 代理时换成 `socks.socksocket`）、`socket.setdefaulttimeout`、
   `ssl._create_default_https_context`，而且执行完不还原。本项目导入 pocsuite3 之前先记录原值，
   每批（含单发交互执行）结束在 `_reset_engine_state()` 里逐项复原，并清空 `cmd_line_options` 与
-  `kb.results/targets/registered_pocs`（`DIY_OPTIONS` 在每次执行前清空），因此同进程的指纹采集、
-  对照校验、Web 页面不会被这些改写污染；代理等选项本身仍按 `proxies` 显式传给非 POC 请求。
+  `kb.results/targets/registered_pocs`（`DIY_OPTIONS` 在每次执行前清空）。复原之前（批次执行期间、
+  或被墙钟上限放弃的挂住线程尚未结束时），非 POC 请求由 `services/webfetch.py` 在导入时抓住的原始
+  `Session.request` 发出，不经过 pocsuite3 的 hook——那个 hook 的 timeout 只接受数值（
+  `(connect, read)` 会直接 `TypeError`），还会套上 POC 的代理并固定 `verify=False`；
+  代理等选项本身仍按 `proxies` 显式传给非 POC 请求。
   唯一补不回来的情况：被墙钟上限放弃的那个挂住线程（Python 无法强杀）可能在复原之后再次改写它们，
   此时表现就是"引擎被占用"，重启服务可彻底释放。
 * pocsuite3 对 POC 请求固定 `verify=False`（写死在 `session_request` 的默认参数里，SDK 没有开关），

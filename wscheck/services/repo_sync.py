@@ -24,6 +24,8 @@ from urllib.parse import quote, urlsplit
 
 import requests
 
+from . import webfetch
+
 API_ROOT = "https://api.github.com"
 GITHUB_HOSTS = {"github.com", "www.github.com"}
 HTTP_USER_AGENT = "wscheck-repo-sync"
@@ -234,18 +236,22 @@ def _api_headers(token: str) -> dict:
 
 
 def _api_get(url: str, token: str, proxies: dict | None) -> dict:
-    try:
-        response = requests.get(url, headers=_api_headers(token), proxies=proxies or None,
-                                timeout=(CONNECT_TIMEOUT, API_READ_TIMEOUT))
-    except requests.RequestException as error:
-        raise SyncError(_request_error("GitHub API", error)) from error
-    with response:
-        if response.status_code != 200:
-            raise SyncError(_status_error(response, bool(token)))
+    # 走 webfetch.request：不经过 pocsuite3 在 POC 执行期间对 Session.request 的改写，
+    # 否则 (connect, read) 形式的 timeout 会被它 float() 成 TypeError，请求也会被套上 verify=False
+    with webfetch.session(HTTP_USER_AGENT) as http:
         try:
-            payload = response.json()
-        except ValueError as error:
-            raise SyncError("GitHub API 返回的不是 JSON，可能被代理或网关拦截") from error
+            response = webfetch.request(http, "GET", url, headers=_api_headers(token),
+                                        proxies=proxies or None, verify=True,
+                                        timeout=(CONNECT_TIMEOUT, API_READ_TIMEOUT))
+        except requests.RequestException as error:
+            raise SyncError(_request_error("GitHub API", error)) from error
+        with response:
+            if response.status_code != 200:
+                raise SyncError(_status_error(response, bool(token)))
+            try:
+                payload = response.json()
+            except ValueError as error:
+                raise SyncError("GitHub API 返回的不是 JSON，可能被代理或网关拦截") from error
     if not isinstance(payload, dict):
         raise SyncError("GitHub API 返回的数据格式异常")
     return payload
@@ -253,29 +259,31 @@ def _api_get(url: str, token: str, proxies: dict | None) -> dict:
 
 def _download_zipball(info: RepoInfo, token: str, proxies: dict | None, dest: str) -> None:
     url = f"{API_ROOT}/repos/{info.spec.slug}/zipball/{info.commit}"
-    try:
-        response = requests.get(url, headers=_api_headers(token), proxies=proxies or None,
-                                timeout=(CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT), stream=True)
-    except requests.RequestException as error:
-        raise SyncError(_request_error("下载仓库压缩包", error)) from error
-    with response:
-        if response.status_code != 200:
-            raise SyncError(_status_error(response, bool(token)))
-        expected = response.headers.get("Content-Length") or ""
-        if expected.isdigit() and int(expected) > MAX_ARCHIVE_BYTES:
-            raise SyncError(f"仓库压缩包超过 {MAX_ARCHIVE_BYTES // (1024 * 1024)} MB，拒绝同步")
-        total = 0
+    with webfetch.session(HTTP_USER_AGENT) as http:
         try:
-            with open(dest, "wb") as handle:
-                for chunk in response.iter_content(64 * 1024):
-                    if not chunk:
-                        continue
-                    total += len(chunk)
-                    if total > MAX_ARCHIVE_BYTES:
-                        raise SyncError(f"仓库压缩包超过 {MAX_ARCHIVE_BYTES // (1024 * 1024)} MB，拒绝同步")
-                    handle.write(chunk)
+            response = webfetch.request(http, "GET", url, headers=_api_headers(token),
+                                        proxies=proxies or None, verify=True, stream=True,
+                                        timeout=(CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT))
         except requests.RequestException as error:
             raise SyncError(_request_error("下载仓库压缩包", error)) from error
+        with response:
+            if response.status_code != 200:
+                raise SyncError(_status_error(response, bool(token)))
+            expected = response.headers.get("Content-Length") or ""
+            if expected.isdigit() and int(expected) > MAX_ARCHIVE_BYTES:
+                raise SyncError(f"仓库压缩包超过 {MAX_ARCHIVE_BYTES // (1024 * 1024)} MB，拒绝同步")
+            total = 0
+            try:
+                with open(dest, "wb") as handle:
+                    for chunk in response.iter_content(64 * 1024):
+                        if not chunk:
+                            continue
+                        total += len(chunk)
+                        if total > MAX_ARCHIVE_BYTES:
+                            raise SyncError(f"仓库压缩包超过 {MAX_ARCHIVE_BYTES // (1024 * 1024)} MB，拒绝同步")
+                        handle.write(chunk)
+            except requests.RequestException as error:
+                raise SyncError(_request_error("下载仓库压缩包", error)) from error
 
 
 def _status_error(response: requests.Response, has_token: bool) -> str:

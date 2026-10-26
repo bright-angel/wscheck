@@ -17,6 +17,12 @@ from ..constants import DEFAULT_BODY_LIMIT, DEFAULT_USER_AGENT
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# pocsuite3 的 init() 会把 requests.Session.request 换成自己的 hook（开启会话复用时连
+# requests.api.request 一起换掉），执行 POC 期间不还原。那个 hook 把 timeout 强制转成 float，
+# 传 (connect, read) 直接 TypeError，还会套上 POC 的代理并固定 verify=False；本项目的请求
+# 不能经过它，需要在导入 pocsuite3 之前抓住原实现。
+_RAW_SESSION_REQUEST = requests.sessions.Session.request
+
 HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 JSON_ACCEPT = "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8"
 CHUNK_SIZE = 16 * 1024
@@ -30,6 +36,11 @@ def session(user_agent: str = "") -> requests.Session:
     return http
 
 
+def request(http: requests.Session, method: str, url: str, **kwargs) -> requests.Response:
+    """用未被 pocsuite3 改写的 Session.request 发请求，响应由调用方负责关闭。"""
+    return _RAW_SESSION_REQUEST(http, method, url, **kwargs)
+
+
 def get(url: str, *, timeout: int, user_agent: str = "", proxies: dict | None = None,
         limit: int = DEFAULT_BODY_LIMIT, accept: str = HTML_ACCEPT,
         allow_redirects: bool = True, http: requests.Session | None = None,
@@ -41,8 +52,8 @@ def get(url: str, *, timeout: int, user_agent: str = "", proxies: dict | None = 
     client = http or session(user_agent)
     owns_client = http is None
     try:
-        response = client.get(
-            url, timeout=timeout, verify=verify, allow_redirects=allow_redirects,
+        response = request(
+            client, "GET", url, timeout=timeout, verify=verify, allow_redirects=allow_redirects,
             stream=True, headers={"Accept": accept, "User-Agent": user_agent or DEFAULT_USER_AGENT},
             proxies=proxies or None,
         )
