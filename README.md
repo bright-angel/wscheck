@@ -154,7 +154,7 @@ python tools/migrate_webfinger.py --src C:/path/to/webfinger.yaml --out rules/we
 
 | 处理 | 数量 | 说明 |
 | ---- | ---- | ---- |
-| 保留表达式 | 7963 | 字段别名归一化后按 AST 重新序列化，`||` 合并为一条规则 |
+| 保留表达式 | 7963 | 字段别名归一化后按 AST 重新序列化 ，`||` 合并为一条规则 |
 | 生成规则 | 7025 | 一个应用一条规则，`threshold: 0`，`app_name` 把 `-`/`_` 归一为空格 |
 | 丢弃表达式 | 153 | `protocol`(136)、`path`(11)、`icon_mdhash`(4)、`type`(1)、`body_hash`(1) 属于探测阶段字段，无对应响应信号 |
 | 语法错误 | 2 | 源表达式本身残缺（缺操作数、非法字符）， 已跳过 |
