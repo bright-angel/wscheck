@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">指纹表达式测试</h1>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('fingerprints.list_rules') }}">返回规则列表</a>
+</div>
+
+<form method="post" class="card mb-4">
+  <div class="card-body row g-3">
+    <div class="col-md-9">
+      <label class="form-label small text-muted">表达式</label>
+      <textarea class="form-control mono" name="expr" rows="2" spellcheck="false">{{ output.expr }}</textarea>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small text-muted">阈值</label>
+      <input type="number" min="0" class="form-control" name="threshold" value="{{ output.threshold }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label small text-muted">目标 URL（每行一个）</label>
+      <textarea class="form-control mono" name="urls" rows="4"
+                placeholder="https://example.com">{{ request.values.get('urls', '') }}</textarea>
+    </div>
+  </div>
+  <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" role="switch" id="allow_internal"
+               name="allow_internal" {% if output.allow_internal %}checked{% endif %}>
+        <label class="form-check-label small" for="allow_internal">允许内网目标</label>
+      </div>
+      <span class="small text-muted">测试会真实访问目标（探测超时 6s），单次最多 {{ limit }} 行，请仅对授权目标使用。</span>
+    </div>
+    <button class="btn btn-primary" type="submit"><i class="bi bi-play-fill"></i> 开始测试</button>
+  </div>
+</form>
+
+{% if output.skipped_lines %}
+<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle"></i>
+  单次测试最多 {{ limit }} 个目标，已忽略后面 {{ output.skipped_lines }} 行。</div>
+{% endif %}
+{% if output.parse_error %}
+<div class="alert alert-danger"><i class="bi bi-x-octagon"></i> 表达式解析失败：{{ output.parse_error }}</div>
+{% endif %}
+
+{% for item in output.results %}
+<div class="card mb-3">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span class="mono">{{ item.url }}</span>
+    {% if item.error %}
+    <span class="badge text-bg-danger">{{ item.error }}</span>
+    {% else %}
+    <span class="badge text-bg-{{ item.evaluation.matched and 'success' or 'secondary' }}">
+      {{ item.evaluation.matched and '命中' or '未命中' }}</span>
+    <span class="small text-muted">得分 {{ item.evaluation.score }} / 阈值 {{ item.evaluation.threshold }}</span>
+    {% endif %}
+  </div>
+  {% if not item.error %}
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="fw-semibold small mb-2">条件求值</div>
+        <table class="table table-sm table-fixed mb-2" style="--tbl-min:520px">
+          <colgroup><col><col style="width:56px"><col style="width:52px"><col style="width:38%"></colgroup>
+          <thead><tr><th>条件</th><th>结果</th><th>权重</th><th>实际值</th></tr></thead>
+          <tbody>
+          {% for condition in item.evaluation.conditions %}
+            <tr>
+              <td><div class="mono small clip-2" title="{{ condition.expr }}">{{ condition.expr }}</div></td>
+              <td><span class="badge text-bg-{{ condition.hit and 'success' or 'secondary' }}">
+                {{ condition.hit and '真' or '假' }}</span></td>
+              <td>{{ condition.weight }}</td>
+              <td class="mono small text-muted clip" title="{{ condition.actual }}">
+                {{ condition.actual or '(空)' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <div class="fw-semibold small mb-1">AST 结构</div>
+        <pre class="evidence">{{ item.ast }}</pre>
+      </div>
+      <div class="col-lg-5">
+        <div class="fw-semibold small mb-2">采集信号</div>
+        <ul class="list-group list-group-flush mb-3">
+          <li class="list-group-item px-0"><span class="text-muted">状态码</span> {{ item.status_code }}</li>
+          <li class="list-group-item px-0"><span class="text-muted">标题</span> {{ item.title or '-' }}</li>
+          <li class="list-group-item px-0"><span class="text-muted">Server</span> {{ item.server or '-' }}</li>
+          {% for name, value in item.signals.items() %}
+          {% if name not in ('title', 'server') %}
+          <li class="list-group-item px-0 small">
+            <span class="text-muted">{{ name }}</span>
+            <div class="mono text-truncate" title="{{ value }}">{{ value }}</div>
+          </li>
+          {% endif %}
+          {% endfor %}
+        </ul>
+        <div class="fw-semibold small mb-1">当前库中命中的规则</div>
+        {% for hit in item.hits %}
+        <span class="chip">{{ hit.name }} · {{ hit.score }}/{{ hit.threshold }}</span>
+        {% else %}
+        <div class="text-muted small">无</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if not output.results and not output.parse_error %}
+<div class="text-center text-muted py-5">
+  <i class="bi bi-flask fs-1 d-block mb-2"></i>输入表达式与目标 URL 后开始测试
+</div>
+{% endif %}
+{% endblock %}

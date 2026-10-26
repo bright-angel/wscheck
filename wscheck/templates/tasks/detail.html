@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, severity_badge, finding_cells, progress_bar, pager with context %}
+
+{% block title %}{{ task.name }} · WSCHECK{% endblock %}
+
+{% block content %}
+{% set cfg = task.config_json %}
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3" id="taskLive"
+     data-endpoint="{{ url_for('tasks.summary', task_id=task.id) }}"
+     data-finished="{{ (not task.is_active) | tojson }}">
+  <div>
+    <a class="text-muted small text-decoration-none" href="{{ url_for('tasks.list_tasks') }}">
+      <i class="bi bi-arrow-left"></i> 任务列表</a>
+    <h1 class="h4 page-title mb-1">{{ task.name }} {{ status_badge(task) }}</h1>
+    <div class="mono text-muted small">{{ task.id }} · 创建于 {{ task.created_at | dt }}</div>
+    <div class="small text-muted" id="liveHint"></div>
+    {% if task.error_message %}<div class="text-danger small mt-1">{{ task.error_message }}</div>{% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    {% if task.is_active %}
+    <form method="post" action="{{ url_for('tasks.cancel', task_id=task.id) }}">
+      <button class="btn btn-outline-warning btn-sm" data-confirm="取消该任务？已完成的结果会保留。">
+        <i class="bi bi-stop-circle"></i> 取消</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('tasks.retry', task_id=task.id) }}">
+      <button class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> 重试</button>
+    </form>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">导出报告</button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        {% for fmt, label in formats.items() %}
+        <li><a class="dropdown-item" href="{{ url_for('tasks.download', task_id=task.id, fmt=fmt) }}">{{ label }}</a></li>
+        {% endfor %}
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{{ url_for('tasks.download', task_id=task.id, fmt='html', all=1) }}">
+          包含误报的完整报告</a></li>
+      </ul>
+    </div>
+    <form method="post" action="{{ url_for('tasks.delete', task_id=task.id) }}">
+      <button class="btn btn-outline-danger btn-sm" data-confirm="删除任务及其全部结果？">删除</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-4" data-live-progress>
+  <div class="card-body">
+    <div class="row g-3 align-items-center">
+      <div class="col-lg-8">{{ progress_bar(task) }}</div>
+      <div class="col-lg-4 text-end text-muted small">
+        开始 {{ task.started_at | dt('%H:%M:%S') }} · 结束 {{ task.finished_at | dt('%H:%M:%S') }} ·
+        耗时 {{ [task.started_at, task.finished_at] | duration }}
+      </div>
+    </div>
+    <div class="row g-3 mt-1">
+      <div class="col-6 col-md-3 col-xl-2">
+        <div class="small text-muted">结果数</div><div class="h5 mb-0" data-live="findings">{{ findings.total }}</div>
+      </div>
+      {% for level in Severity.ORDER %}
+      <div class="col-6 col-md-3 col-xl-2">
+        <div class="small text-muted">{{ Severity.LABELS[level] }}</div>
+        <div class="h5 mb-0" data-live-severity="{{ level }}">{{ severity_counts.get(level, 0) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="row mt-2 small text-muted g-3">
+      <div class="col-md-4">目标数 {{ task.target_count }} · 并发 {{ cfg.concurrency }} · 批次 {{ cfg.batch_size }}</div>
+      <div class="col-md-4">超时 task={{ cfg.task_timeout }}s probe={{ cfg.probe_timeout }}s poc={{ cfg.poc_timeout }}s</div>
+      <div class="col-md-4">模式 {{ scan_modes.get(cfg.scan_mode, cfg.scan_mode or '（旧任务）') }}
+        · 对照校验 {{ cfg.negative_verify and '开启' or '关闭' }}</div>
+    </div>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+  {% for key, label, count in [('findings', '结果', findings.total), ('assets', '资产', assets.total), ('logs', '日志', logs.total)] %}
+  <li class="nav-item">
+    <a class="nav-link{% if tab == key %} active{% endif %}"
+       href="{{ url_for('tasks.detail', task_id=task.id, tab=key) }}">{{ label }} ({{ count }})</a>
+  </li>
+  {% endfor %}
+</ul>
+
+{% if tab == 'findings' %}
+<form id="batchForm" method="post" action="{{ url_for('findings.batch') }}" class="card" data-collect-ids>
+  <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+    <div class="form-check me-2">
+      <input class="form-check-input" type="checkbox" id="checkAll">
+      <label class="form-check-label small" for="checkAll">全选本页</label>
+    </div>
+    <span class="small text-muted me-2">已选 <b id="selectionCount" class="text-dark">0</b> 项</span>
+    <select class="form-select form-select-sm" name="action" style="width:150px">
+      <option value="confirm">标记为确认有效</option>
+      <option value="false_positive">标记为误报</option>
+      <option value="reset">恢复待复核</option>
+      <option value="delete">删除结果</option>
+    </select>
+    <input class="form-control form-control-sm" name="note" placeholder="复核说明（可选）"
+           aria-label="复核说明" style="width:260px">
+    <button class="btn btn-sm btn-primary" type="submit">批量处理</button>
+    <a class="btn btn-sm btn-outline-secondary ms-auto" href="{{ url_for('findings.append', task_id=task.id) }}">
+      <i class="bi bi-plus-lg"></i> 人工补充结果</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-fixed mb-0 align-middle" style="--tbl-min:1212px">
+      <colgroup>
+        <col style="width:34px"><col style="width:72px"><col style="width:222px"><col style="width:220px">
+        <col style="width:90px"><col style="width:70px"><col style="width:74px"><col style="width:118px">
+        <col style="width:200px"><col style="width:112px">
+      </colgroup>
+      <thead><tr><th></th><th>等级</th><th>POC</th><th>目标</th><th>组件</th>
+        <th>校验</th><th>复核</th><th>时间</th><th>交互</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+      {% for finding in findings.items %}
+      <tr>
+        <td><input class="form-check-input rowCheck" type="checkbox" name="ids"
+                   value="{{ finding.id }}" aria-label="选择结果 {{ finding.id }}"></td>
+        <td>{{ severity_badge(finding.severity) }}</td>
+        {{ finding_cells(finding, poc_caps, app=True) }}
+        <td class="text-end">
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#ev-{{ finding.id }}">证据</button>
+            <a class="btn btn-outline-primary" href="{{ url_for('findings.detail', finding_id=finding.id) }}">详情</a>
+          </div>
+        </td>
+      </tr>
+      <tr class="collapse" id="ev-{{ finding.id }}">
+        <td colspan="10">
+          {% include "_evidence.html" %}
+          {% if finding.verify_detail %}<div class="small text-muted mt-2">校验说明：{{ finding.verify_detail }}</div>{% endif %}
+          {% if finding.review_note %}<div class="small mt-1">复核说明：{{ finding.review_note }}</div>{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-center text-muted py-4">该任务暂无结果</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+{{ pager(findings, 'tasks.detail', {'task_id': task.id, 'tab': 'findings'}) }}
+
+{% elif tab == 'assets' %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-fixed mb-0 align-middle" style="--tbl-min:1262px">
+      <colgroup>
+        <col style="width:240px"><col style="width:62px"><col style="width:170px"><col style="width:130px">
+        <col style="width:240px"><col style="width:100px"><col style="width:170px"><col style="width:150px">
+      </colgroup>
+      <thead><tr><th>URL</th><th>状态码</th><th>标题</th><th>Server</th><th>指纹</th><th>组件</th>
+        <th>目录命中</th><th>采集情况</th></tr></thead>
+      <tbody>
+      {% for asset in assets.items %}
+      <tr>
+        <td class="mono small">
+          <a class="clip d-block" href="{{ asset.url }}" target="_blank" rel="noreferrer" title="{{ asset.url }}">{{ asset.url }}</a>
+          <div class="text-muted clip">{{ asset.scheme }}://{{ asset.host }}{% if asset.port %}:{{ asset.port }}{% endif %}</div></td>
+        <td>{% if asset.status_code %}<span class="badge text-bg-{{ asset.status_code < 400 and 'success' or 'warning' }}">{{ asset.status_code }}</span>{% else %}-{% endif %}</td>
+        <td class="small clip" title="{{ asset.title }}">{{ asset.title or '-' }}</td>
+        <td class="small mono clip" title="{{ asset.server }}">{{ asset.server or '-' }}</td>
+        <td>{% for name, score in asset.fingerprint.items() %}<span class="chip">{{ name }} {{ score }}</span>{% else %}-{% endfor %}</td>
+        <td class="small">{{ asset.app_names | app_names }}</td>
+        <td class="small">
+          {% if asset.dir_hits %}
+          <span class="chip" title="{% for hit in asset.dir_hits %}{{ hit.app }} {{ hit.path }} ({{ hit.status }}){% if not loop.last %}&#10;{% endif %}{% endfor %}">
+            {{ asset.dir_hits[0].app }}</span>
+          {% if asset.dir_hits | length > 1 %}<span class="text-muted">+{{ asset.dir_hits | length - 1 }}</span>{% endif %}
+          {% else %}<span class="text-muted">-</span>{% endif %}
+        </td>
+        <td class="small text-{{ 'danger' if asset.probe_error else 'muted' }} clip" title="{{ asset.probe_error }}">{{ asset.probe_error or '正常' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">暂无资产</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ pager(assets, 'tasks.detail', {'task_id': task.id, 'tab': 'assets'}) }}
+
+{% else %}
+<div class="card">
+  <div class="card-body">
+    {% for line in logs.items %}
+    <div class="log-line log-{{ line.level }}">
+      <span class="text-muted small me-2">{{ line.created_at | dt('%H:%M:%S') }}</span>
+      <span class="badge text-bg-{{ {'info':'light','warning':'warning','error':'danger','debug':'secondary'}.get(line.level, 'light') }}">{{ line.level }}</span>
+      <span class="ms-2">{{ line.message }}</span>
+    </div>
+    {% else %}
+    <div class="text-muted text-center py-4">暂无日志</div>
+    {% endfor %}
+  </div>
+</div>
+{{ pager(logs, 'tasks.detail', {'task_id': task.id, 'tab': 'logs'}) }}
+{% endif %}
+{% endblock %}

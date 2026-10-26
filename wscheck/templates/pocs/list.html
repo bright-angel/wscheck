@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "_macros.html" import severity_badge, app_badge, capability_badges, filter_select, pager, empty with context %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 page-title mb-1">POC 库</h1>
+    <div class="small text-muted mono">{{ poc_dir }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if not pocsuite_available %}
+    <span class="badge text-bg-warning align-self-center">未检测到 pocsuite3，POC 不会执行</span>
+    {% endif %}
+    <form method="post" action="{{ url_for('pocs.reindex') }}">
+      <button class="btn btn-sm btn-primary"><i class="bi bi-hdd-network"></i> 重建索引</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body d-flex flex-wrap align-items-start justify-content-between gap-3">
+    <div class="small">
+      <div class="fw-semibold mb-1"><i class="bi bi-github"></i> 仓库同步</div>
+      {% if repo_url %}
+        {% set shown_ref = repo_ref or repo_state.ref %}
+        <div>来源：<span class="mono">{{ repo_url }}</span>{% if shown_ref %} @ <span class="mono">{{ shown_ref }}</span>{% endif %}</div>
+        {% if repo_state.commit %}
+        <div class="text-muted">
+          上次同步：{{ repo_state.synced_at }}
+          {% if repo_state.repo %} · <span class="mono">{{ repo_state.repo }}@{{ repo_state.ref }}</span>{% endif %}
+          · 提交 <span class="mono">{{ repo_state.commit[:7] }}</span>
+          · {{ repo_state.file_count }} 个文件{% if repo_state.subdir %} · 子目录 <span class="mono">{{ repo_state.subdir }}</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="text-muted">尚未同步，点击右侧按钮拉取仓库并重建索引。</div>
+        {% endif %}
+      {% else %}
+        <div class="text-muted">POC 由 GitHub 仓库同步维护。请先在设置里填写仓库地址；
+          私有仓库还需要配置有读取权限的 GitHub Token。</div>
+      {% endif %}
+      <div class="text-muted mt-1">同步只覆盖仓库中的文件，手工放进 POC 目录的其他文件不会删除。</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if repo_url %}
+      <form method="post" action="{{ url_for('pocs.sync_repo') }}">
+        <button class="btn btn-sm btn-primary"><i class="bi bi-cloud-arrow-down"></i> 从仓库同步</button>
+      </form>
+      {% endif %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('settings.index', _anchor='group-poc_repo') }}">
+        <i class="bi bi-gear"></i> 仓库设置</a>
+    </div>
+  </div>
+</div>
+
+<form class="filter-bar row g-2 align-items-end mb-3" method="get">
+  {{ filter_select('severity', '严重等级', severities, severity) }}
+  <div class="col-md-3">
+    <label class="form-label small text-muted mb-1">启用状态</label>
+    <select class="form-select form-select-sm" name="state">
+      <option value="">全部</option>
+      <option value="on"{% if state == 'on' %} selected{% endif %}>仅启用</option>
+      <option value="off"{% if state == 'off' %} selected{% endif %}>仅停用</option>
+      {% if unloadable_count %}
+      <option value="unloadable"{% if state == 'unloadable' %} selected{% endif %}>引擎不加载（{{ unloadable_count }}）</option>
+      {% endif %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label small text-muted mb-1">搜索</label>
+    <input class="form-control form-control-sm" name="q" value="{{ keyword }}" placeholder="poc_id / 名称 / appName">
+  </div>
+  <div class="col-md-2 d-flex gap-2">
+    <button class="btn btn-sm btn-primary flex-grow-1"><i class="bi bi-search"></i> 筛选</button>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('pocs.list_pocs') }}">重置</a>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-fixed mb-0 align-middle" style="--tbl-min:1256px">
+      <colgroup>
+        <col style="width:18%"><col style="width:16%"><col style="width:10%"><col style="width:70px">
+        <col style="width:148px"><col><col style="width:88px"><col style="width:92px"><col style="width:116px">
+      </colgroup>
+      <thead><tr><th>POC ID</th><th>名称</th><th>APP_NAME</th><th>等级</th><th>交互能力</th><th>描述</th>
+        <th>索引时间</th><th>状态</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+      {% for poc in pagination.items %}
+      <tr>
+        <td class="mono clip" title="{{ poc.poc_id }}">{{ poc.poc_id }}</td>
+        <td class="clip" title="{{ poc.name }}">{{ poc.name }}</td>
+        <td class="mono small clip" title="{{ poc.app_name }}">{{ app_badge(poc.app_name, linked.get(poc.poc_id, 0)) }}</td>
+        <td>{{ severity_badge(poc.severity) }}</td>
+        <td><div class="small clip-2">
+          {{ capability_badges(poc, compact=True) }}
+          {% if poc.heavy_reason %}<span class="badge text-bg-warning" title="默认不进扫描，需要时把配置 POC_ALLOW_HEAVY 设为 1">{{ poc.heavy_reason }}</span>{% endif %}
+          {% if poc.needs_dnslog %}<span class="badge text-bg-info" title="在「设置」里配置 OOB 域名或 ceye token 后自动放行">OOB</span>{% endif %}
+          {% if poc.poc_options %}<span class="text-muted">{{ poc.poc_options | length }} 参数</span>{% endif %}
+        </div></td>
+        <td><div class="small text-muted clip-2" title="{{ poc.description }}">{{ poc.description or '-' }}</div></td>
+        <td class="small text-muted clip" title="{{ poc.indexed_at | dt }}">{{ poc.indexed_at | date }}</td>
+        <td><div class="d-flex flex-wrap gap-1 justify-content-end">
+          <span class="badge text-bg-{{ poc.enabled and 'success' or 'secondary' }}">
+            {{ poc.enabled and '启用' or '停用' }}</span>
+          {% if not poc.loadable %}
+          <span class="badge text-bg-dark" title="{{ poc.load_error }}">引擎不加载</span>
+          {% endif %}
+        </div></td>
+        <td class="text-end">
+          <div class="d-flex flex-wrap gap-1 justify-content-end">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('pocs.detail', poc_id=poc.poc_id) }}">详情</a>
+            <form method="post" action="{{ url_for('pocs.toggle', poc_id=poc.poc_id) }}">
+              <button class="btn btn-sm btn-outline-primary">{{ poc.enabled and '停用' or '启用' }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">
+        {% if repo_url %}
+        {{ empty('POC 目录为空，先点击上方「从仓库同步」', url_for('pocs.reindex'), '重建索引', 'post') }}
+        {% else %}
+        {{ empty('POC 目录为空：请先到设置里配置 POC 仓库', url_for('settings.index', _anchor='group-poc_repo'), '仓库设置') }}
+        {% endif %}
+      </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ pager(pagination, 'pocs.list_pocs', {'q': keyword or '', 'severity': severity or '', 'state': state or ''}) }}
+<p class="text-muted small mt-2">索引由静态解析生成，不执行 POC 代码。
+  {% if unloadable_count %}其中 {{ unloadable_count }} 个脚本没有调用 register_poc，pocsuite3 的加载器会直接跳过，
+  任务里也不会把它们排进批次；{% endif %}可用「状态」筛选查看。</p>
+{% endblock %}

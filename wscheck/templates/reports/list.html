@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty, pager with context %}
+
+{% block content %}
+<h1 class="h4 page-title mb-3">报告与合并</h1>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <form method="post" action="{{ url_for('reports.create') }}" class="card">
+      <div class="card-header fw-semibold"><i class="bi bi-clipboard2-pulse me-1"></i>生成合并报告</div>
+      <div class="card-body">
+        <label class="form-label small text-muted" for="reportName">报告名称</label>
+        <input class="form-control mb-3" id="reportName" name="name" placeholder="例如：2026-10 资产巡检">
+
+        <div class="form-label small text-muted">导出格式</div>
+        <div class="d-flex flex-wrap gap-3 mb-3">
+          {% for value, label in formats.items() %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="formats" value="{{ value }}"
+                   id="fmt-{{ value }}" {% if value in ('html', 'md') %}checked{% endif %}>
+            <label class="form-check-label" for="fmt-{{ value }}">{{ label }}</label>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="form-label small text-muted">选择任务（排除误报后的结果都会进入报告）</div>
+        <div class="border rounded p-2" style="max-height:320px; overflow:auto">
+          {% for task in tasks %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="task_ids" value="{{ task.id }}"
+                   id="task-{{ loop.index }}">
+            <label class="form-check-label small" for="task-{{ loop.index }}">
+              {{ task.name }}
+              <span class="badge text-bg-light">{{ counts.get(task.id, 0) }}</span>
+              <span class="text-muted">{{ task.created_at | date }}</span>
+            </label>
+          </div>
+          {% else %}
+          <div class="text-muted small">还没有任务</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-footer">
+        <button class="btn btn-primary w-100" type="submit"><i class="bi bi-file-earmark-arrow-down"></i> 生成报告</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header fw-semibold">历史报告</div>
+      <div class="table-responsive">
+        <table class="table table-fixed mb-0 align-middle" style="--tbl-min:720px">
+          <colgroup>
+            <col><col style="width:70px"><col style="width:70px"><col style="width:120px">
+            <col style="width:150px"><col style="width:210px">
+          </colgroup>
+          <thead><tr><th>名称</th><th>任务数</th><th>结果数</th><th>格式</th><th>生成时间</th>
+            <th class="text-end">操作</th></tr></thead>
+          <tbody>
+          {% for report in reports %}
+          <tr>
+            <td class="clip" title="{{ report.name }}">{{ report.name }}</td>
+            <td>{{ report.task_ids | length }}</td>
+            <td><span class="badge text-bg-danger">{{ report.finding_count }}</span></td>
+            <td>{% for fmt in report.files.keys() %}<span class="chip">{{ formats.get(fmt, fmt) }}</span>{% endfor %}</td>
+            <td class="small text-muted">{{ report.created_at | dt }}</td>
+            <td class="text-end">
+              <div class="d-flex flex-wrap gap-1 justify-content-end">
+                {% for fmt in report.files.keys() %}
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_for('reports.download', report_id=report.id, fmt=fmt) }}">{{ fmt|upper }}</a>
+                {% endfor %}
+                <form method="post" action="{{ url_for('reports.delete', report_id=report.id) }}">
+                  <button class="btn btn-sm btn-outline-danger" data-confirm="删除报告 {{ report.name }} 及其文件？">删除</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">{{ empty('还没有生成过报告') }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{ pager(pagination, 'reports.list_reports') }}
+    <div class="alert alert-light border mt-3 small mb-0">
+      报告文件保存在 <span class="mono">data/reports/</span> 目录，删除报告会同时清理文件。
+      报告包含任务概览、指纹识别结果与检测结果；导出内容默认排除标记为误报的结果。
+    </div>
+  </div>
+</div>
+{% endblock %}

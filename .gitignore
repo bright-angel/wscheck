@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 本地环境变量（Docker Compose 的 WSCHECK_SECRET 等）
+.env
+
+# 运行期数据（数据库、导出、报告）
+data/
+# 只忽略仓库根目录下的第三方 POC 语料，避免连 wscheck/templates/pocs 一起被忽略
+# POC 由「设置 → POC 仓库同步」拉到 pocs/ 下，不纳入版本库，仅保留占位文件
+pocs/*
+rules/*
+tools/*
+!/pocs/.gitkeep
+# 去重时归档的重复 POC，保留在本地便于回滚
+/pocs_duplicates/
+# 清理时移出的无效 POC 及 _attack 删除前的备份，便于回滚
+/pocs_removed/

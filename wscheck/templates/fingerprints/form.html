@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">{{ editing and '编辑指纹规则' or '新建指纹规则' }}</h1>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('fingerprints.list_rules') }}">返回列表</a>
+</div>
+
+<form method="post" class="card">
+  <div class="card-body row g-3">
+    <div class="col-md-4">
+      <label class="form-label small text-muted">规则 ID（主键，小写英文/数字）</label>
+      <input class="form-control mono" name="id" value="{{ data.get('id', '') }}"
+             placeholder="wordpress" {% if editing %}readonly{% endif %}>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small text-muted">名称</label>
+      <input class="form-control" name="name" value="{{ data.get('name', '') }}" placeholder="WordPress">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small text-muted">映射 appName（用于 POC 自动筛选）</label>
+      <input class="form-control mono" name="app_name" value="{{ data.get('app_name', '') }}"
+             placeholder="wordpress">
+    </div>
+
+    <div class="col-12">
+      <label class="form-label small text-muted">FOFA 表达式</label>
+      <textarea class="form-control mono" name="expr" rows="3"
+                placeholder='(body="wp-content" || body="wp-includes") &amp;&amp; !header="x-powered-by: asp.net"'>{{ data.get('expr', '') }}</textarea>
+      <div class="form-text">
+        字段：title / body / header / server / cert / port / status / app / product / favicon（别名：banner、content_type→header，icon_hash→favicon）；
+        运算符：=（包含）、!=（不包含）、==（相等）、~=（正则）；逻辑：&amp;&amp; 、 || 、 ! 、括号。
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label small text-muted">命中阈值（权重分）</label>
+      <input type="number" min="0" class="form-control" name="threshold"
+             value="{{ data.get('threshold', 30) }}">
+      <div class="form-text">权重：title=30 body=20 header=10 server=10 cert=20 port=5 status=5 app=30 favicon=25；阈值 0 表示布尔命中</div>
+    </div>
+    <div class="col-md-8">
+      <label class="form-label small text-muted">备注</label>
+      <input class="form-control" name="note" value="{{ data.get('note', '') }}" placeholder="说明该规则的适用场景">
+      <div class="form-check form-switch mt-3">
+        <input class="form-check-input" type="checkbox" role="switch" id="enabled" name="enabled"
+               {% if data.get('enabled', 1) in (1, 'on', True, '1') %}checked{% endif %}>
+        <label class="form-check-label" for="enabled">启用该规则</label>
+      </div>
+    </div>
+  </div>
+  <div class="card-footer d-flex justify-content-between align-items-center">
+    <span class="small text-muted">保存后自动失效 AST 缓存，仅影响之后创建的任务。</span>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('fingerprints.test', expr=data.get('expr', '')) }}">表达式测试</a>
+      <button class="btn btn-primary" type="submit">保存规则</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

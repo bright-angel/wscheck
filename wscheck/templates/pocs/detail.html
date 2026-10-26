@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% from "_macros.html" import severity_badge, verify_badge, review_badge, info_row, app_badge, capability_badges with context %}
+
+{% block title %}{{ poc.name or poc.poc_id }} · POC · WSCHECK{% endblock %}
+
+{% block content %}
+<a class="text-muted small text-decoration-none" href="{{ url_for('pocs.list_pocs') }}">
+  <i class="bi bi-arrow-left"></i> POC 库</a>
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+  <div class="flex-grow-1">
+    <h1 class="h4 page-title mb-1">{{ poc.name or poc.poc_id }}
+      {{ severity_badge(poc.severity) }}
+      <span class="badge text-bg-{{ poc.enabled and 'success' or 'secondary' }}">
+        {{ poc.enabled and '已启用' or '已停用' }}</span>
+      {% if not poc.loadable %}
+      <span class="badge text-bg-dark" title="{{ poc.load_error }}">引擎不加载</span>
+      {% endif %}
+      {% if poc.needs_dnslog %}
+      <span class="badge text-bg-{{ oob_ready and 'success' or 'info' }}"
+            title="{{ oob_ready and 'OOB 已配置，该 POC 可进扫描' or '需在「设置」里配置 OOB 域名或 ceye token 才会执行' }}">
+        {{ oob_ready and 'OOB 就绪' or '待配置 OOB' }}</span>
+      {% endif %}
+    </h1>
+    <div class="mono text-muted small text-break">{{ poc.poc_id }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-primary"
+       href="{{ url_for('findings.list_findings', q=poc.poc_id) }}">
+      <i class="bi bi-bug"></i> 结果 {{ hit_count }}</a>
+    <form method="post" action="{{ url_for('pocs.toggle', poc_id=poc.poc_id) }}">
+      <button class="btn btn-sm btn-outline-{{ poc.enabled and 'warning' or 'success' }}">
+        {{ poc.enabled and '停用该 POC' or '启用该 POC' }}</button>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">基本信息</div>
+      <ul class="list-group list-group-flush">
+        {{ info_row('组件', app_badge(poc.app_name, linked_rule_count) if poc.app_name else '未标注') }}
+        {{ info_row('严重等级', severity_badge(poc.severity)) }}
+        {{ info_row('漏洞编号', poc.vul_id or '未标注') }}
+        {{ info_row('漏洞类型', poc.vul_type or '未标注') }}
+        {{ info_row('索引时间', poc.indexed_at | dt) }}
+      </ul>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">交互能力</div>
+      <div class="card-body small">
+        <div class="d-flex flex-wrap gap-2 mb-2">{{ capability_badges(poc) }}</div>
+        {% if poc.shell_only %}
+        <div class="text-muted">shell 模式需要目标回连监听端口，Web 端不提供该交互。</div>
+        {% endif %}
+        {% if not poc.loadable %}
+        <div class="alert alert-dark small py-2 mt-2 mb-0">
+          pocsuite3 不会加载这个脚本：{{ poc.load_error or '正文里没有 register_poc 调用' }}。
+          即使保持启用也不会排进扫描批次，需要给脚本补上 <span class="mono">register_poc(poc)</span> 才会被执行。</div>
+        {% endif %}
+        {% if poc.heavy_reason %}
+        <div class="alert alert-warning small py-2 mt-2 mb-0">
+          默认不进扫描：{{ poc.heavy_reason }}。
+          {% if poc.needs_dnslog %}配置 OOB 后自动放行{% else %}需要时把配置项 POC_ALLOW_HEAVY 设为 1{% endif %}。</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header fw-semibold">运行参数</div>
+      {% if poc.poc_options %}
+      <div class="table-responsive">
+        <table class="table table-fixed mb-0 align-middle" style="--tbl-min:420px">
+          <colgroup><col style="width:34%"><col style="width:22%"><col><col style="width:56px"></colgroup>
+          <thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>必填</th></tr></thead>
+          <tbody>
+          {% for option in poc.poc_options %}
+          <tr>
+            <td class="mono small clip" title="{{ option.name }}">{{ option.name }}
+              {% if option.description %}<div class="text-muted clip" title="{{ option.description }}">
+                {{ option.description }}</div>{% endif %}</td>
+            <td class="small text-muted clip">{{ option.type or '-' }}</td>
+            <td class="mono small clip" title="{{ option.default }}">{{ option.default if option.default not in (none, '') else '（空）' }}</td>
+            <td>{% if option.required %}<span class="badge text-bg-danger">是</span>{% else %}
+              <span class="text-muted small">否</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-muted small">该 POC 未声明可填写参数。</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">漏洞描述</div>
+      <div class="card-body small" style="white-space: pre-wrap">{{ poc.description or '索引未抽取到描述。' }}</div>
+    </div>
+
+    {% if poc.poc_refs %}
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">参考链接</div>
+      <ul class="list-group list-group-flush">
+        {% for link in poc.poc_refs %}
+        <li class="list-group-item small py-2">
+          <a class="mono text-break" href="{{ link }}" rel="noreferrer noopener" target="_blank">{{ link }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="fw-semibold">最近命中</span>
+        <a class="small" href="{{ url_for('findings.list_findings', q=poc.poc_id) }}">查看全部 {{ hit_count }} 条</a>
+      </div>
+      {% if hits %}
+      <div class="table-responsive">
+        <table class="table table-fixed mb-0 align-middle" style="--tbl-min:520px">
+          <colgroup><col style="width:104px"><col><col style="width:78px"><col style="width:78px"><col style="width:64px"></colgroup>
+          <thead><tr><th>时间</th><th>目标</th><th>校验</th><th>复核</th><th></th></tr></thead>
+          <tbody>
+          {% for finding in hits %}
+          <tr>
+            <td class="small text-muted clip">{{ finding.created_at | date }}</td>
+            <td class="mono small clip" title="{{ finding.target_url }}">{{ finding.target_url }}</td>
+            <td>{{ verify_badge(finding.verify_status) }}</td>
+            <td>{{ review_badge(finding.review_status) }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('findings.detail', finding_id=finding.id) }}">详情</a></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-muted small">还没有该 POC 的命中记录。</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="fw-semibold">脚本预览</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                data-bs-target="#pocSource">
+          <i class="bi bi-code-square"></i> {{ '收起' if source else '展开' }}</button>
+      </div>
+      <div class="collapse{% if source %} show{% endif %}" id="pocSource">
+        <div class="card-body">
+          <div class="small text-muted mb-2 mono text-break">{{ poc.file_path }}</div>
+          {% if source %}
+          <pre class="evidence mb-0">{{ source }}</pre>
+          <div class="small text-muted mt-2">仅展示前 {{ source.splitlines() | length }} 行，用于判断脚本行为，不会执行。</div>
+          {% else %}
+          <div class="text-muted small">脚本文件不存在或不可读，索引可能已过期，试试「重建索引」。</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

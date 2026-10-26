@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="WSCHECK">
+<title>{{ title }} · WSCHECK 安全检测报告</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%232f6fed' d='M8 0 1 3v5c0 4.4 3 7.5 7 8 4-.5 7-3.6 7-8V3z'/%3E%3Cpath fill='%23fff' d='M8 4a1.6 1.6 0 0 0-1.6 1.6V7H6v3h4V7h-.4V5.6A1.6 1.6 0 0 0 8 4m1 3H7V5.6a1 1 0 0 1 2 0z'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #eef2f8;
+  --panel: #ffffff;
+  --panel-2: #f7f9fd;
+  --text: #172033;
+  --muted: #65748a;
+  --line: #dfe6f0;
+  --brand: #2f6fed;
+  --brand-dark: #14213d;
+  --code-bg: #0b1220;
+  --code-text: #d9e4f5;
+  --ok: #15803d;
+  --ok-soft: #ecfdf3;
+  --warn: #b45309;
+  --warn-soft: #fffaeb;
+  --bad: #b42318;
+  --bad-soft: #fef3f2;
+  --shadow: 0 10px 30px rgba(20, 33, 61, .07);
+  --radius: 16px;
+}
+.sev-critical { --sev: #c62828; --sev-soft: #fef3f2; }
+.sev-high { --sev: #dd5a26; --sev-soft: #fff4ec; }
+.sev-medium { --sev: #b57c00; --sev-soft: #fffaeb; }
+.sev-low { --sev: #2f6fed; --sev-soft: #eff6ff; }
+.sev-info { --sev: #64748b; --sev-soft: #f1f5f9; }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a1120;
+    --panel: #111b2e;
+    --panel-2: #0e1729;
+    --text: #e8eef9;
+    --muted: #93a4bc;
+    --line: #22304a;
+    --brand: #6ea0ff;
+    --brand-dark: #0a1120;
+    --code-bg: #070d18;
+    --code-text: #d9e4f5;
+    --ok: #4ade80;
+    --ok-soft: #10291c;
+    --warn: #fbbf24;
+    --warn-soft: #2b2110;
+    --bad: #ff8a80;
+    --bad-soft: #2a1514;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .42);
+  }
+  .sev-critical { --sev: #ff8a80; --sev-soft: #2a1514; }
+  .sev-high { --sev: #ffb27a; --sev-soft: #2b1c12; }
+  .sev-medium { --sev: #ffd166; --sev-soft: #2b2410; }
+  .sev-low { --sev: #8bb4ff; --sev-soft: #12233d; }
+  .sev-info { --sev: #a9b7ca; --sev-soft: #1a2436; }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+.mono, pre {
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-variant-ligatures: none;
+}
+.wrap { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
+
+/* ---------- Hero ---------- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 52px 0 46px;
+  color: #fff;
+  background:
+    radial-gradient(900px 360px at 88% -20%, rgba(89, 146, 255, .62), transparent 62%),
+    linear-gradient(118deg, #101a30 0%, #14213d 42%, #1d3a6e 100%);
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -120px -180px auto;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 0 0 48px rgba(255, 255, 255, .04), 0 0 0 96px rgba(255, 255, 255, .025);
+  pointer-events: none;
+}
+.hero .wrap { position: relative; z-index: 1; }
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .76rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #a9c4f7;
+}
+.eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: #6ea0ff;
+}
+.hero h1 {
+  margin: 14px 0 8px;
+  font-size: clamp(1.55rem, 3vw, 2.35rem);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: .01em;
+  overflow-wrap: anywhere;
+}
+.hero-meta { color: #c2d2ef; font-size: .9rem; }
+.hero-meta span + span::before { content: "·"; margin: 0 9px; color: #6f87b4; }
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 30px;
+}
+.metric {
+  padding: 14px 16px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .13);
+  backdrop-filter: blur(6px);
+}
+.metric-value { font-size: 1.55rem; font-weight: 700; line-height: 1.2; }
+.metric-label { color: #b9cbec; font-size: .78rem; margin-top: 2px; }
+
+.sev-distribution { margin-top: 26px; }
+.dist-bar {
+  display: flex;
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .16);
+}
+.dist-bar span { height: 100%; background: var(--sev); }
+.dist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 11px;
+  color: #c2d2ef;
+  font-size: .8rem;
+}
+.dist-legend b { color: #fff; font-weight: 600; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--sev); margin-right: 6px; }
+.hero-empty { margin-top: 22px; color: #b9cbec; font-size: .86rem; }
+
+/* ---------- Sections ---------- */
+main.wrap { padding: 34px 0 12px; }
+.section { margin-bottom: 34px; }
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.section-head h2 { margin: 0; font-size: 1.08rem; font-weight: 650; letter-spacing: .02em; }
+.section-head .hint { color: var(--muted); font-size: .82rem; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* ---------- Task table ---------- */
+.table-scroll { overflow-x: auto; }
+table.tasks { width: 100%; border-collapse: collapse; font-size: .88rem; min-width: 640px; }
+table.tasks th, table.tasks td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+table.tasks th {
+  background: var(--panel-2);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .78rem;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+table.tasks tr:last-child td { border-bottom: 0; }
+table.tasks td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.status-pill {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .76rem;
+  white-space: nowrap;
+}
+
+/* ---------- Assets (fingerprints) ---------- */
+table.assets { min-width: 860px; }
+table.assets td { vertical-align: top; }
+table.assets .asset-url { overflow-wrap: anywhere; color: var(--text); }
+table.assets .asset-task { margin-top: 2px; color: var(--muted); font-size: .76rem; }
+table.assets .cell-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+table.assets .cell-chips .chip { margin: 0; }
+table.assets .cell-chips .chip b { font-weight: 600; }
+table.assets .muted { color: var(--muted); }
+table.assets .error { color: var(--bad); overflow-wrap: anywhere; }
+table.assets .asset-title { max-width: 220px; overflow-wrap: anywhere; }
+.asset-figure { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- Toolbar ---------- */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 0;
+  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.search {
+  flex: 1 1 240px;
+  min-width: 200px;
+  position: relative;
+}
+.search input {
+  width: 100%;
+  padding: 9px 13px 9px 34px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: .86rem;
+  outline: none;
+}
+.search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(47, 111, 237, .14); }
+.search::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+}
+.search::after {
+  content: "";
+  position: absolute;
+  left: 23px;
+  top: 50%;
+  width: 5px;
+  height: 2px;
+  margin-top: 4px;
+  background: var(--muted);
+  transform: rotate(45deg);
+}
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-btn {
+  --sev: var(--brand);
+  --sev-soft: rgba(47, 111, 237, .1);
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background-color .15s ease;
+}
+.filter-btn:hover { border-color: var(--sev); color: var(--sev); }
+.filter-btn.active { border-color: var(--sev); color: var(--sev); background: var(--sev-soft); font-weight: 600; }
+.filter-btn span { color: inherit; opacity: .72; margin-left: 3px; font-variant-numeric: tabular-nums; }
+.toolbar-actions { display: flex; gap: 6px; margin-left: auto; }
+.ghost-btn {
+  padding: 6px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: .8rem;
+  cursor: pointer;
+}
+.ghost-btn:hover { border-color: var(--brand); color: var(--brand); }
+.visible-count { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.visible-count b { color: var(--text); }
+
+/* ---------- Findings ---------- */
+.finding {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 20px 22px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--sev);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  scroll-margin-top: 76px;
+}
+.finding[hidden] { display: none; }
+.finding-head { display: flex; align-items: flex-start; gap: 12px; }
+.sev-badge {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 7px;
+  background: var(--sev-soft);
+  border: 1px solid color-mix(in srgb, var(--sev) 32%, transparent);
+  color: var(--sev);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.finding-title { min-width: 0; flex: 1; }
+.finding-title h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.finding-target {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: .82rem;
+  overflow-wrap: anywhere;
+}
+.finding-no {
+  flex: none;
+  color: var(--muted);
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .76rem;
+  overflow-wrap: anywhere;
+}
+.chip b { color: var(--text); font-weight: 600; }
+.note {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .83rem;
+  overflow-wrap: anywhere;
+}
+.note b { color: var(--text); font-weight: 600; }
+
+.subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 9px;
+  font-size: .8rem;
+  color: var(--muted);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.subhead b { color: var(--text); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: .86rem; }
+
+.tx {
+  margin-top: 9px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.tx > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  background: var(--panel-2);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.tx > summary::-webkit-details-marker { display: none; }
+.tx > summary::after {
+  content: "⌄";
+  margin-left: 2px;
+  color: var(--muted);
+  font-size: .9rem;
+  transition: transform .15s ease;
+}
+.tx[open] > summary::after { transform: rotate(180deg); }
+.tx[open] > summary { border-bottom: 1px solid var(--line); }
+.method {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: rgba(47, 111, 237, .12);
+  color: var(--brand);
+  font-size: .73rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+.tx-url {
+  flex: 1 1 240px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: .78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-size: .74rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.status.ok { color: var(--ok); background: var(--ok-soft); }
+.status.warn { color: var(--warn); background: var(--warn-soft); }
+.status.bad { color: var(--bad); background: var(--bad-soft); }
+.elapsed, .tx-count { color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+
+.io { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.io-col { min-width: 0; }
+.io-col + .io-col { border-left: 1px solid var(--line); }
+.io-head {
+  padding: 7px 13px;
+  color: var(--muted);
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.io pre {
+  margin: 0;
+  padding: 13px;
+  max-height: 340px;
+  overflow: auto;
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-size: .78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 2;
+}
+
+.empty {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: .83rem;
+}
+.fallback {
+  margin: 9px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-size: .78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
+.raw { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.raw > summary { cursor: pointer; color: var(--muted); font-size: .78rem; }
+.raw pre {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: .78rem;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.no-results {
+  padding: 44px 20px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+footer {
+  padding: 26px 0 38px;
+  color: var(--muted);
+  font-size: .78rem;
+  text-align: center;
+}
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+
+@media (max-width: 980px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .io { grid-template-columns: 1fr; }
+  .io-col + .io-col { border-left: 0; border-top: 1px solid var(--line); }
+  .toolbar-actions { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .hero { padding: 38px 0 34px; }
+  .metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .metric { padding: 11px 13px; }
+  .finding { padding: 16px 15px; }
+  .filter-btn { font-size: .76rem; padding: 4px 9px; }
+}
+
+@media print {
+  :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f6f8fb;
+    --text: #1a2233;
+    --muted: #5d6b80;
+    --line: #d5dde8;
+    --shadow: none;
+  }
+  body { background: #fff; font-size: 12px; }
+  .hero { background: #14213d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .toolbar, footer { display: none !important; }
+  .finding { break-inside: avoid; page-break-inside: avoid; box-shadow: none; }
+  .io pre, .fallback, .raw pre { max-height: none; }
+  .raw { display: none; }
+  a { color: inherit; text-decoration: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">WSCHECK · Security Report</div>
+    <h1>{{ title }}</h1>
+    <div class="hero-meta">
+      <span>生成时间 {{ generated_at }}</span>
+      <span>时区 {{ timezone }}</span>
+      <span>任务 {{ tasks|length }} 个</span>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="metric-value">{{ summary.total }}</div><div class="metric-label">结果总数</div></div>
+      <div class="metric"><div class="metric-value">{{ summary.confirmed }}</div><div class="metric-label">已确认</div></div>
+      <div class="metric"><div class="metric-value">{{ summary.suspected }}</div><div class="metric-label">疑似</div></div>
+      <div class="metric"><div class="metric-value">{{ summary.targets }}</div><div class="metric-label">涉及目标</div></div>
+      <div class="metric"><div class="metric-value">{{ tasks|length }}</div><div class="metric-label">报告任务</div></div>
+    </div>
+
+    {% if summary.total %}
+    <div class="sev-distribution">
+      <div class="dist-bar" role="img" aria-label="严重等级分布">
+        {% for item in severity_filters if item.count %}<span class="sev-{{ item.key }}" style="width: {{ item.pct }}%" title="{{ item.label }} {{ item.count }}"></span>{% endfor %}
+      </div>
+      <div class="dist-legend">
+        {% for item in severity_filters if item.count %}
+        <span><i class="dot sev-{{ item.key }}"></i>{{ item.label }} <b>{{ item.count }}</b></span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="section">
+    <div class="section-head">
+      <h2>任务概览</h2>
+      <span class="hint">仅统计未标记为误报的结果</span>
+    </div>
+    <div class="panel table-scroll">
+      <table class="tasks">
+        <thead>
+          <tr><th>任务</th><th>状态</th><th class="num">目标数</th><th class="num">结果数</th><th>创建时间</th></tr>
+        </thead>
+        <tbody>
+        {% for task in tasks %}
+          <tr>
+            <td>{{ task.name }}</td>
+            <td><span class="status-pill">{{ task.status_label }}</span></td>
+            <td class="num">{{ task.targets }}</td>
+            <td class="num">{{ task.findings }}</td>
+            <td>{{ task.created_at }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5">没有关联任务</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>指纹识别</h2>
+      <span class="hint">
+        资产 {{ asset_summary.assets }} 个 · 识别到指纹 {{ asset_summary.fingerprinted }} 个
+        · 目录命中 {{ asset_summary.dir_hits }} 条
+        {% if asset_summary.probe_errors %}· 采集异常 {{ asset_summary.probe_errors }} 个{% endif %}
+      </span>
+    </div>
+    {% if assets %}
+    <div class="panel table-scroll">
+      <table class="tasks assets">
+        <thead>
+          <tr><th>目标</th><th>状态</th><th>标题</th><th>应用指纹</th><th>组件</th>
+            <th>目录命中</th><th>Server</th><th>采集情况</th></tr>
+        </thead>
+        <tbody>
+        {% for asset in assets %}
+          <tr>
+            <td>
+              <div class="asset-url mono">{{ asset.url }}</div>
+              <div class="asset-task">任务 {{ asset.task_name or '-' }}</div>
+            </td>
+            <td class="asset-figure">
+              {% if asset.status_code %}<span class="status-pill">{{ asset.status_code }}</span>{% else %}<span class="muted">-</span>{% endif %}
+            </td>
+            <td><div class="asset-title" title="{{ asset.title }}">{{ asset.title or '-' }}</div></td>
+            <td>
+              <div class="cell-chips">
+                {% for item in asset.fingerprints %}<span class="chip"><b>{{ item.name }}</b> {{ item.score }}</span>{% else %}<span class="muted">-</span>{% endfor %}
+              </div>
+            </td>
+            <td>
+              <div class="cell-chips">
+                {% for app in asset.apps %}<span class="chip">{{ app }}</span>{% else %}<span class="muted">-</span>{% endfor %}
+              </div>
+            </td>
+            <td>
+              <div class="cell-chips">
+                {% for hit in asset.dir_hits %}
+                <span class="chip" title="{{ hit.title }}"><b>{{ hit.app }}</b> {{ hit.path }}{% if hit.status is not none %} <span class="muted">{{ hit.status }}</span>{% endif %}</span>
+                {% else %}<span class="muted">-</span>{% endfor %}
+              </div>
+            </td>
+            <td class="mono muted">{{ asset.server or '-' }}</td>
+            <td>
+              {% if asset.probe_error %}<span class="error">{{ asset.probe_error }}</span>{% else %}<span class="muted">正常</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">没有采集到指纹识别结果（任务可能尚未开始采集资产，或全部目标请求失败）</div>
+    {% endif %}
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>检测结果</h2>
+      <span class="hint">展开每条结果可查看完整请求与响应报文</span>
+    </div>
+
+    {% if findings %}
+    <div class="toolbar">
+      <div class="search">
+        <input id="search" type="search" placeholder="搜索目标、POC、组件或任务" aria-label="搜索检测结果" autocomplete="off">
+      </div>
+      <div class="filters" role="group" aria-label="按严重等级筛选">
+        <button type="button" class="filter-btn active" data-sev="all">全部 <span>{{ summary.total }}</span></button>
+        {% for item in severity_filters %}
+        <button type="button" class="filter-btn sev-{{ item.key }}" data-sev="{{ item.key }}">{{ item.label }} <span>{{ item.count }}</span></button>
+        {% endfor %}
+      </div>
+      <div class="toolbar-actions">
+        <span class="visible-count">显示 <b id="visibleCount">{{ findings|length }}</b> / {{ findings|length }} 条</span>
+        <button type="button" class="ghost-btn" id="expandAll">展开全部</button>
+        <button type="button" class="ghost-btn" id="collapseAll">收起全部</button>
+      </div>
+    </div>
+
+    <div id="findingList">
+    {% for f in findings %}
+      <article class="finding sev-{{ f.severity }}" data-severity="{{ f.severity }}" data-search="{{ f.search_blob }}">
+        <div class="finding-head">
+          <span class="sev-badge">{{ f.severity_label }}</span>
+          <div class="finding-title">
+            <h3>{{ f.poc_name }}</h3>
+            <div class="finding-target mono">{{ f.target_url }}</div>
+          </div>
+          <span class="finding-no">#{{ loop.index }}</span>
+        </div>
+
+        <div class="chips">
+          {% if f.app_name %}<span class="chip">组件 <b>{{ f.app_name }}</b></span>{% endif %}
+          <span class="chip">校验 <b>{{ f.verify_label }}</b></span>
+          <span class="chip">复核 <b>{{ f.review_label }}</b></span>
+          <span class="chip">POC <b>{{ f.poc_id }}</b></span>
+          <span class="chip">任务 <b>{{ f.task_name }}</b></span>
+          <span class="chip">发现 <b>{{ f.created_at }}</b></span>
+        </div>
+
+        {% if f.verify_detail %}<div class="note"><b>校验说明：</b>{{ f.verify_detail }}</div>{% endif %}
+        {% if f.review_note %}<div class="note"><b>复核说明：</b>{{ f.review_note }}</div>{% endif %}
+
+        <div class="subhead"><b>HTTP 请求 / 响应</b><span>{{ f.http_count }} 次交互</span></div>
+        {% if f.packets %}
+        <div class="tx-list">
+          {% for p in f.packets %}
+          <details class="tx"{% if loop.first %} open{% endif %}>
+            <summary>
+              <span class="method">{{ p.method }}</span>
+              <span class="tx-url mono" title="{{ p.url }}">{{ p.url }}</span>
+              <span class="status {{ p.status_kind }}">{{ p.status_line }}</span>
+              {% if p.elapsed_ms %}<span class="elapsed">{{ p.elapsed_ms }} ms</span>{% endif %}
+              <span class="tx-count">{{ p.index }}/{{ p.total }}</span>
+            </summary>
+            <div class="io">
+              <div class="io-col">
+                <div class="io-head">请求</div>
+                <pre>{{ p.request }}</pre>
+              </div>
+              <div class="io-col">
+                <div class="io-head">响应</div>
+                <pre>{{ p.response }}</pre>
+              </div>
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty">该记录未包含 HTTP 报文（旧记录，或 POC 使用了非 requests 的请求方式）。</div>
+        <pre class="fallback">{{ f.evidence_summary }}</pre>
+        {% endif %}
+
+        <details class="raw">
+          <summary>查看 POC 判定输出</summary>
+          <pre>{{ f.evidence_detail }}</pre>
+        </details>
+      </article>
+    {% endfor %}
+    </div>
+    <div class="no-results" id="noResults" hidden>没有符合筛选条件的结果</div>
+    {% else %}
+    <div class="no-results">本次报告没有可展示的检测结果</div>
+    {% endif %}
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>由 WSCHECK 生成 · 报告版本 v3</span>
+    <span>本报告仅供授权范围内的安全测试与研究工作使用</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var list = document.getElementById('findingList');
+  if (!list) return;
+  var cards = Array.prototype.slice.call(list.querySelectorAll('.finding'));
+  var search = document.getElementById('search');
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.filter-btn'));
+  var counter = document.getElementById('visibleCount');
+  var none = document.getElementById('noResults');
+  var active = 'all';
+
+  function apply() {
+    var query = (search.value || '').trim().toLowerCase();
+    var shown = 0;
+    cards.forEach(function (card) {
+      var matchSev = active === 'all' || card.getAttribute('data-severity') === active;
+      var matchText = !query || (card.getAttribute('data-search') || '').indexOf(query) !== -1;
+      var visible = matchSev && matchText;
+      card.hidden = !visible;
+      if (visible) shown += 1;
+    });
+    counter.textContent = shown;
+    if (none) none.hidden = shown !== 0;
+    buttons.forEach(function (button) {
+      button.classList.toggle('active', button.getAttribute('data-sev') === active);
+    });
+  }
+
+  buttons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      active = button.getAttribute('data-sev') || 'all';
+      apply();
+    });
+  });
+  search.addEventListener('input', apply);
+
+  document.getElementById('expandAll').addEventListener('click', function () {
+    list.querySelectorAll('details').forEach(function (item) { item.open = true; });
+  });
+  document.getElementById('collapseAll').addEventListener('click', function () {
+    list.querySelectorAll('details').forEach(function (item) { item.open = false; });
+  });
+
+  window.addEventListener('beforeprint', function () {
+    list.querySelectorAll('details.tx').forEach(function (item) { item.open = true; });
+  });
+})();
+</script>
+</body>
+</html>

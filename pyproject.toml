@@ -1,0 +1,21 @@
+[project]
+name = "code1"
+version = "0.1.0"
+description = "快速 Web 安全检测工具：FOFA 风格指纹 + pocsuite3 POC + 任务化扫描控制台"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # requests 2.31 的依赖自检只接受 chardet <6，pocsuite3 会拉进 7.x 并在启动时告警
+    "chardet>=3.0.2,<6",
+    "cryptography>=43.0",
+    "flask==3.1.2",
+    "flask-sqlalchemy==3.1.1",
+    "jinja2==3.1.5",
+    "mmh3>=5.0",
+    "pocsuite3==2.1.0",
+    "pyyaml>=6.0",
+    "requests==2.31.0",
+    "sqlalchemy==2.0.36",
+    "tzdata>=2024.1",
+    "urllib3<2",
+]

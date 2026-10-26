@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">新建扫描任务</h1>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('tasks.list_tasks') }}">返回列表</a>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<form method="post" class="row g-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header fw-semibold d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <span><i class="bi bi-diagram-3 me-1"></i>扫描模式</span>
+        <span class="small text-{{ dir_dict.apps and 'muted' or 'danger' }} fw-normal">
+          目录字典 {{ dir_dict.apps }} 个应用 / {{ dir_dict.paths }} 条路径
+          {% if not dir_dict.apps %}（不可用：{{ dir_dict.path }}）{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% set mode_items = [
+            ('fingerprint', '指纹扫描', '只做指纹探测：不探测敏感目录，也不执行 POC。', 'bi-fingerprint'),
+            ('full', '全指纹扫描', '指纹 + 主动敏感目录探测（Nacos、Druid、禅道等），不执行 POC。', 'bi-binoculars'),
+            ('vuln', '指纹漏洞扫描', '指纹 + 目录探测后按指纹跑 POC；未识别到指纹的目标扫描全部 POC。', 'bi-shield-exclamation'),
+            ('targeted', '专项扫描', '只做简单指纹 + 已选 POC，忽略目录探测；未选 POC 时按指纹匹配。', 'bi-crosshair')
+          ] %}
+          {% set mode_values = mode_items | map(attribute=0) | list %}
+          {% set current = form.get('scan_mode') if form.get('scan_mode') in mode_values else 'vuln' %}
+          {% for value, label, hint, icon in mode_items %}
+          <div class="col-md-6 col-xl-3">
+            <label class="mode-card border rounded-3 p-3 h-100 d-block">
+              <input class="form-check-input me-2" type="radio" name="scan_mode" value="{{ value }}"
+                     {% if current == value %}checked{% endif %}>
+              <span class="fw-semibold"><i class="bi {{ icon }} me-1"></i>{{ label }}</span>
+              <div class="small text-muted mt-1">{{ hint }}</div>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      <div class="card-header fw-semibold"><i class="bi bi-crosshair me-1"></i>扫描目标</div>
+      <div class="card-body">
+        <label class="form-label small text-muted" for="taskName">任务名称</label>
+        <input class="form-control mb-3" id="taskName" name="name" value="{{ form.get('name', '') }}" placeholder="留空自动用任务 ID 命名">
+
+        <label class="form-label small text-muted" for="taskInput">目标列表（每行一个：URL / IP / CIDR / 域名）</label>
+        <textarea class="form-control mono" id="taskInput" name="input" rows="8"
+                  placeholder="https://example.com&#10;192.168.1.0/24&#10;10.0.0.5:8080">{{ form.get('input', '') }}</textarea>
+        <div class="form-text">
+          内网地址（10/8、172.16/12、192.168/16、127/8）默认被拒绝，需要勾选下方“允许内网目标”。
+          仅可对获得授权的目标扫描。
+        </div>
+
+        <div class="border rounded-3 p-3 mt-3" data-fofa-box>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <span class="fw-semibold small"><i class="bi bi-search me-1"></i>从 FOFA 导入</span>
+            {% if fofa_ready %}
+            <span class="badge text-bg-success">API Key 已配置</span>
+            {% else %}
+            <a class="small" href="{{ url_for('settings.index') }}">去全局设置配置 FOFA API Key</a>
+            {% endif %}
+          </div>
+          {% if fofa_ready %}
+          <div class="row g-2 align-items-end">
+            <div class="col">
+              <label class="form-label small text-muted" for="fofaQuery">FOFA 查询语句</label>
+              <input class="form-control form-control-sm mono" id="fofaQuery"
+                     placeholder='app="Nacos" &amp;&amp; country="CN"'>
+            </div>
+            <div class="col-auto" style="width: 104px">
+              <label class="form-label small text-muted" for="fofaSize">数量</label>
+              <input type="number" class="form-control form-control-sm" id="fofaSize"
+                     value="50" min="1" max="{{ fofa_limit }}">
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-sm btn-outline-primary text-nowrap" type="button"
+                      data-fofa-import data-endpoint="{{ url_for('tasks.fofa_import') }}">
+                <i class="bi bi-download"></i> 导入目标
+              </button>
+            </div>
+          </div>
+          <div class="form-text">
+            导入结果追加到上方目标列表并自动去重；每次查询消耗 FOFA 额度，单次最多 {{ fofa_limit }} 条。
+          </div>
+          <div class="small mt-1" data-fofa-status aria-live="polite"></div>
+          {% else %}
+          <div class="form-text mb-0">配置 Key 后，可按查询语句批量导入目标；导入结果仍需通过输入层的目标校验。</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header fw-semibold"><i class="bi bi-sliders me-1"></i>扫描配置</div>
+      <div class="card-body row g-3">
+        {% for field, label, hint in [
+          ('concurrency', '并发数', '指纹采集线程数与 POC 内部线程数'),
+          ('batch_size', '批次大小', '每批提交给 POC 引擎的目标数（POC 侧固定每 25 个一批），批次之间可取消、可超时'),
+          ('task_timeout', '任务超时（秒）', '整个任务的最长执行时间，超时后不再启动新的 POC 批次，已完成的结果照常保留'),
+          ('probe_timeout', '指纹超时（秒）', '单次指纹采集请求'),
+          ('poc_timeout', 'POC 超时（秒）', 'POC 内单次请求超时'),
+          ('verify_timeout', '对照超时（秒）', '负向对照校验请求超时')
+        ] %}
+        <div class="col-md-6">
+          <label class="form-label small text-muted" for="{{ field }}">{{ label }}</label>
+          <input type="number" min="1" class="form-control" id="{{ field }}" name="{{ field }}"
+                 value="{{ form.get(field, defaults[field]) }}">
+          <div class="form-text">{{ hint }}</div>
+        </div>
+        {% endfor %}
+
+        <div class="col-12 d-flex flex-wrap gap-4 pt-2">
+          {% for field, label in [('allow_internal', '允许内网目标'), ('skip_static', '静态资源跳过 POC'),
+                                  ('negative_verify', '负向对照校验')] %}
+          <div class="form-check form-switch">
+            {% set checked = form.get(field) if form else ('on' if defaults[field] else '') %}
+            <input class="form-check-input" type="checkbox" role="switch" id="{{ field }}" name="{{ field }}"
+                   {% if checked %}checked{% endif %}>
+            <label class="form-check-label" for="{{ field }}">{{ label }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header fw-semibold"><i class="bi bi-fingerprint me-1"></i>指纹与 POC 范围</div>
+      <div class="card-body">
+        {% set scope = form.get('fingerprint_scope', 'all') %}
+        <label class="form-label small text-muted" for="fingerprintScope">指纹规则</label>
+        <select class="form-select mb-2" name="fingerprint_scope" id="fingerprintScope">
+          <option value="all" {% if scope != 'custom' %}selected{% endif %}>全部启用规则（{{ rule_total }} 条）</option>
+          <option value="custom" {% if scope == 'custom' %}selected{% endif %}>仅使用搜索勾选的规则</option>
+        </select>
+        <div class="mb-3" data-picker data-kind="rule" data-name="fingerprint_ids" data-scope="fingerprintScope"
+             data-endpoint="{{ url_for('tasks.picker') }}" data-pick-values="custom"
+             data-placeholder="按名称 / ID / APP 搜索" data-selected='{{ picked_rules | tojson }}'>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input class="form-control picker-search" placeholder="按名称 / ID / APP 搜索" autocomplete="off">
+          </div>
+          <div class="list-group list-group-flush picker-results d-none"></div>
+          <div class="mt-2 d-flex flex-wrap gap-1 picker-selected"></div>
+          <noscript><div class="text-muted small">禁用脚本时按“全部启用规则”执行。</div></noscript>
+        </div>
+
+        <div data-mode-panel>
+          <label class="form-label small text-muted">POC 选择</label>
+          <div data-picker data-kind="poc" data-name="poc_ids"
+               data-endpoint="{{ url_for('tasks.picker') }}"
+               data-placeholder="按名称 / ID / 组件搜索" data-selected='{{ picked_pocs | tojson }}'>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="bi bi-search"></i></span>
+              <input class="form-control picker-search" placeholder="按名称 / ID / 组件搜索" autocomplete="off">
+            </div>
+            <div class="list-group list-group-flush picker-results d-none"></div>
+            <div class="mt-2 d-flex flex-wrap gap-1 picker-selected"></div>
+            <noscript><div class="text-muted small">禁用脚本时按指纹自动匹配。</div></noscript>
+          </div>
+          <p class="text-muted small mb-0 mt-2" data-mode-hint>
+            指纹漏洞 / 专项扫描：勾选后只跑这些 POC（含爆破类）；不勾选则按指纹匹配，
+            指纹漏洞模式下未识别到指纹的目标会跑全量 POC。指纹扫描与全指纹扫描不执行 POC。
+          </p>
+        </div>
+        <p class="text-muted small mb-0 mt-2">规则与 POC 数量较多，勾选框改为按需搜索添加。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div class="text-muted small">创建后立即开始执行，可在任务详情页查看进度与结果。</div>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-play-fill"></i> 创建并开始</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+

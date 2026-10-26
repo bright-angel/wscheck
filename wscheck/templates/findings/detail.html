@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import severity_badge, verify_badge, review_badge, poc_action_buttons, info_row with context %}
+
+{% block title %}结果 #{{ finding.id }} · WSCHECK{% endblock %}
+
+{% block content %}
+<a class="text-muted small text-decoration-none" href="{{ url_for('findings.list_findings') }}">
+  <i class="bi bi-arrow-left"></i> 结果列表</a>
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">结果 #{{ finding.id }} {{ severity_badge(finding.severity) }}</h1>
+  <div class="d-flex flex-wrap gap-2">
+    {{ poc_action_buttons(finding, poc_caps) }}
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('tasks.detail', task_id=finding.task_id, tab='findings') }}">
+      查看所属任务</a>
+    <button type="button" class="btn btn-sm btn-outline-primary"
+            data-copy="{{ finding.target_url }}" title="复制目标 URL">
+      <i class="bi bi-clipboard"></i> 复制目标 URL</button>
+    <form method="post" action="{{ url_for('findings.delete', finding_id=finding.id) }}">
+      <button class="btn btn-sm btn-outline-danger" data-confirm="删除该结果？该操作不可恢复。">
+        <i class="bi bi-trash"></i> 删除</button>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">基本信息</div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">POC ID</span>
+          <span class="mono text-end wrap-anywhere ms-2">
+            {% if poc_caps.get(finding.poc_id) %}<a class="text-decoration-none"
+              href="{{ url_for('pocs.detail', poc_id=finding.poc_id) }}">{{ finding.poc_id }}</a>
+            {% else %}{{ finding.poc_id or '—' }}{% endif %}</span></li>
+        {{ info_row('POC 名称', finding.poc_name or '-') }}
+        {{ info_row('组件', finding.app_name or '-') }}
+        {{ info_row('目标', finding.target_url, mono=True) }}
+        {{ info_row('来源', finding.source == 'manual_append' and '人工补充' or '扫描命中') }}
+        {{ info_row('发现时间', finding.created_at | dt) }}
+        {{ info_row('复核时间', finding.reviewed_at | dt) }}
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header fw-semibold">复核状态</div>
+      <div class="card-body">
+        <div class="mb-2">{{ verify_badge(finding.verify_status) }} {{ review_badge(finding.review_status) }}</div>
+        <div class="small text-muted mb-3">{{ finding.verify_detail or '未做对照校验' }}</div>
+        {% if finding.review_note %}
+        <div class="alert alert-light border small">{{ finding.review_note }}</div>
+        {% endif %}
+        <form method="post" action="{{ url_for('findings.review', finding_id=finding.id) }}">
+          <input class="form-control form-control-sm mb-2" name="note" placeholder="复核说明"
+                 aria-label="复核说明">
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-sm btn-success" name="action" value="confirm">确认有效</button>
+            <button class="btn btn-sm btn-dark" name="action" value="false_positive">标记误报</button>
+            <button class="btn btn-sm btn-outline-secondary" name="action" value="reset">恢复待复核</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">判定依据与证据</div>
+      <div class="card-body">
+        {% include "_evidence.html" %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header fw-semibold">任务快照</div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <tbody>
+          <tr><th class="text-muted">任务</th><td>{{ task.name }}</td>
+            <th class="text-muted">状态</th><td>{{ task.status_label }}</td></tr>
+          <tr><th class="text-muted">创建时间</th><td>{{ task.created_at | dt }}</td>
+            <th class="text-muted">结束时间</th><td>{{ task.finished_at | dt }}</td></tr>
+          <tr><th class="text-muted">目标数</th><td>{{ task.target_count }}</td>
+            <th class="text-muted">耗时</th><td>{{ [task.started_at, task.finished_at] | duration }}</td></tr>
+          <tr><th class="text-muted">配置</th><td colspan="3" class="mono small wrap-anywhere">{{ task.config_json | tojson }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

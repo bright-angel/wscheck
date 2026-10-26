@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pager, empty with context %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">指纹规则</h1>
+  <div class="d-flex gap-2">
+    <form method="post" action="{{ url_for('fingerprints.reload_rules') }}">
+      <button class="btn btn-sm btn-outline-secondary" data-confirm="热重载会重建表达式 AST 缓存，仅影响之后创建的任务。">
+        <i class="bi bi-arrow-clockwise"></i> 热重载</button>
+    </form>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('fingerprints.test') }}">
+      <i class="bi bi-flask"></i> 表达式测试</a>
+    <a class="btn btn-sm btn-primary" href="{{ url_for('fingerprints.edit') }}"><i class="bi bi-plus-lg"></i> 新建规则</a>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body d-flex flex-wrap align-items-start justify-content-between gap-3">
+    <div class="small">
+      <div class="fw-semibold mb-1"><i class="bi bi-github"></i> 规则仓库同步</div>
+      {% if rules_repo_url %}
+        {% set shown_ref = rules_repo_ref or rules_state.ref %}
+        <div>来源：<span class="mono">{{ rules_repo_url }}</span>{% if shown_ref %} @ <span class="mono">{{ shown_ref }}</span>{% endif %}</div>
+        {% if rules_state.commit %}
+        <div class="text-muted">
+          上次同步：{{ rules_state.synced_at }}
+          {% if rules_state.repo %} · <span class="mono">{{ rules_state.repo }}@{{ rules_state.ref }}</span>{% endif %}
+          · 提交 <span class="mono">{{ rules_state.commit[:7] }}</span>
+          · {{ rules_state.file_count }} 个文件{% if rules_state.subdir %} · 子目录 <span class="mono">{{ rules_state.subdir }}</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="text-muted">尚未同步，点击右侧按钮拉取规则仓库并导入数据库。</div>
+        {% endif %}
+      {% else %}
+        <div class="text-muted">指纹规则可以继续手工维护，也可以在设置里指定 GitHub 仓库后同步。</div>
+      {% endif %}
+      <div class="text-muted mt-1">同步按规则 ID 覆盖名称、表达式与阈值，保留页面上的启用/停用状态；
+        只删除上次同步提供、当前仓库和本地规则文件都不再包含的规则。</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if rules_repo_url %}
+      <form method="post" action="{{ url_for('fingerprints.sync_repo') }}">
+        <button class="btn btn-sm btn-primary"><i class="bi bi-cloud-arrow-down"></i> 从规则仓库同步</button>
+      </form>
+      {% endif %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('settings.index', _anchor='group-rules_repo') }}">
+        <i class="bi bi-gear"></i> 仓库设置</a>
+    </div>
+  </div>
+</div>
+
+<form class="filter-bar row g-2 align-items-end mb-3" method="get">
+  <div class="col-md-3">
+    <label class="form-label small text-muted mb-1">启用状态</label>
+    <select class="form-select form-select-sm" name="state">
+      <option value="">全部</option>
+      <option value="on"{% if state == 'on' %} selected{% endif %}>仅启用</option>
+      <option value="off"{% if state == 'off' %} selected{% endif %}>仅停用</option>
+    </select>
+  </div>
+  <div class="col-md-7">
+    <label class="form-label small text-muted mb-1">搜索</label>
+    <input class="form-control form-control-sm" name="q" value="{{ keyword }}" placeholder="ID / 名称 / 表达式 / appName">
+  </div>
+  <div class="col-md-2 d-flex gap-2">
+    <button class="btn btn-sm btn-primary flex-grow-1"><i class="bi bi-search"></i> 筛选</button>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('fingerprints.list_rules') }}">重置</a>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-fixed mb-0 align-middle" style="--tbl-min:1080px">
+      <colgroup>
+        <col style="width:15%"><col style="width:13%"><col><col style="width:56px">
+        <col style="width:124px"><col style="width:118px"><col style="width:64px"><col style="width:168px">
+      </colgroup>
+      <thead><tr><th>ID</th><th>名称</th><th>表达式</th>
+        <th title="得分达到阈值才判定命中；0 表示表达式为真即命中">阈值</th>
+        <th>APP_NAME</th><th>更新时间</th>
+        <th>状态</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+      {% for rule in pagination.items %}
+      <tr>
+        <td class="mono clip" title="{{ rule.id }}">{{ rule.id }}</td>
+        <td><div class="clip" title="{{ rule.name }}">{{ rule.name }}</div>
+          {% if rule.note %}<div class="text-muted small clip" title="{{ rule.note }}">{{ rule.note }}</div>{% endif %}</td>
+        <td><div class="expr clip-2" title="{{ rule.expr }}">{{ rule.expr }}</div>
+          {% if broken.get(rule.id) %}
+          <div class="text-danger small clip" title="{{ broken.get(rule.id) }}">
+            <i class="bi bi-exclamation-triangle"></i> {{ broken.get(rule.id) }}</div>
+          {% endif %}
+        </td>
+        <td>{{ rule.threshold }}</td>
+        <td class="mono small clip" title="{{ rule.app_name }}">{{ rule.app_name or '-' }}</td>
+        <td class="small text-muted clip" title="{{ rule.updated_at | dt }}">{{ rule.updated_at | date }}</td>
+        <td>
+          <span class="badge text-bg-{{ rule.enabled and 'success' or 'secondary' }}">
+            {{ rule.enabled and '启用' or '停用' }}</span>
+        </td>
+        <td class="text-end">
+          <div class="d-flex flex-wrap gap-1 justify-content-end">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('fingerprints.edit', rule_id=rule.id) }}">编辑</a>
+            <form method="post" action="{{ url_for('fingerprints.toggle', rule_id=rule.id) }}">
+              <button class="btn btn-sm btn-outline-primary">{{ rule.enabled and '停用' or '启用' }}</button>
+            </form>
+            <form method="post" action="{{ url_for('fingerprints.delete', rule_id=rule.id) }}">
+              <button class="btn btn-sm btn-outline-danger" data-confirm="删除规则 {{ rule.id }}？">删除</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8">{{ empty('还没有指纹规则', url_for('fingerprints.edit'), '新建规则') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ pager(pagination, 'fingerprints.list_rules', {'q': keyword or '', 'state': state or ''}) }}
+
+<div class="card mt-4">
+  <div class="card-body">
+    <div class="fw-semibold mb-2">表达式语法</div>
+    <ul class="small text-muted mb-2">
+      <li>字段：<span class="mono">title body header server cert port status app product favicon</span>，别名 <span class="mono">banner content_type→header</span>、<span class="mono">icon_hash→favicon</span></li>
+      <li>运算符：<span class="mono">=</span> 包含、<span class="mono">!=</span> 不包含、<span class="mono">==</span> 完全相等、<span class="mono">~=</span> 正则匹配</li>
+      <li>逻辑：<span class="mono">&amp;&amp;</span>、<span class="mono">||</span>、<span class="mono">!</span>、括号</li>
+      <li>得分 = 所有命中条件的字段权重之和，<span class="mono">得分 ≥ 阈值</span> 且布尔结果为真时判定命中</li>
+      <li>匹配不区分大小写；<span class="mono">app</span> 字段参与第二遍求值，可用于组合规则</li>
+    </ul>
+    <div class="mono small bg-light rounded p-2">
+      (body="wp-content" || body="wp-includes") &amp;&amp; !header="x-powered-by: asp.net"
+    </div>
+  </div>
+</div>
+{% endblock %}

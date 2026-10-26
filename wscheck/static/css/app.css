@@ -1,0 +1,230 @@
+:root {
+  --app-accent: #2f6fed;
+  --app-bg: #f4f6fb;
+}
+
+body {
+  background: var(--app-bg);
+  color: #1f2733;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+}
+
+.app-navbar {
+  background: linear-gradient(90deg, #14213d 0%, #1f3a68 55%, #2f6fed 130%);
+  box-shadow: 0 2px 12px rgba(20, 33, 61, .18);
+}
+
+.app-navbar .navbar-brand,
+.app-navbar .nav-link,
+.app-navbar .navbar-toggler-icon {
+  color: rgba(255, 255, 255, .82);
+}
+
+.app-navbar .nav-link.active {
+  color: #fff;
+  font-weight: 600;
+}
+
+.app-navbar .nav-link:hover {
+  color: #fff;
+}
+
+.nav-tz {
+  background-color: rgba(255, 255, 255, .12);
+  border-color: rgba(255, 255, 255, .22);
+  color: #fff;
+  min-width: 168px;
+}
+
+.nav-tz option {
+  color: #1f2733;
+}
+
+.app-footer {
+  color: #5c6675;
+  font-size: .82rem;
+  padding: 1.25rem 0 2rem;
+}
+
+.card {
+  border-radius: .85rem;
+  border: 1px solid #e6eaf2;
+}
+
+.stat-card .stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+}
+
+.page-title {
+  font-weight: 650;
+  letter-spacing: .2px;
+}
+
+.table {
+  --bs-table-bg: transparent;
+  font-size: .92rem;
+}
+
+.table thead th {
+  font-weight: 600;
+  color: #6b7684;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* 长 URL、POC ID、表达式会把自动布局的表格撑变形，固定列宽后按单元格裁剪。
+   min-width 保证窄屏下由 .table-responsive 横向滚动，而不是把列压成一条缝 */
+.table-fixed {
+  table-layout: fixed;
+  min-width: var(--tbl-min, 920px);
+}
+
+.table-fixed th,
+.table-fixed td {
+  overflow: hidden;
+}
+
+.clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 多行裁剪只能用在块级元素上，直接加到 td 会让行高失控 */
+.clip-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.wrap-anywhere {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.mono,
+.evidence,
+.expr {
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: .84rem;
+}
+
+.expr {
+  background: #f2f5fa;
+  border-radius: 6px;
+  padding: 2px 6px;
+  word-break: break-all;
+}
+
+.picker-results {
+  max-height: 180px;
+  overflow: auto;
+  margin-top: .25rem;
+}
+
+.mode-card {
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+
+.mode-card:hover {
+  border-color: #9db7d9 !important;
+}
+
+.mode-card:has(input:checked) {
+  border-color: #2f6fd0 !important;
+  background: #f3f7ff;
+  box-shadow: 0 0 0 .15rem rgba(47, 111, 208, .12);
+}
+
+.picker-selected .chip button {
+  width: .8em;
+  height: .8em;
+}
+
+.evidence {
+  background: #0f172a;
+  color: #d7e2f4;
+  border-radius: 10px;
+  padding: .9rem 1rem;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.evidence-sm {
+  max-height: 300px;
+  font-size: .8125rem;
+  padding: .7rem .8rem;
+}
+
+.console-entry {
+  border-left: 2px solid #2f4568;
+  padding-left: .6rem;
+}
+
+.console-entry .fw-semibold {
+  color: #8fb6ff;
+}
+
+.task-progress {
+  height: 20px;
+  border-radius: 8px;
+  background: #e9edf5;
+}
+
+.task-progress .progress-bar {
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+.chip {
+  display: inline-block;
+  background: #eef2fb;
+  color: #35507f;
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: .78rem;
+  margin: 0 3px 3px 0;
+}
+
+.filter-bar {
+  background: #fff;
+  border: 1px solid #e6eaf2;
+  border-radius: .85rem;
+  padding: .85rem 1rem;
+}
+
+.list-group-item {
+  border-color: #eef1f6;
+}
+
+.log-line {
+  border-bottom: 1px dashed #eef1f6;
+  padding: .35rem 0;
+  font-size: .85rem;
+}
+
+.log-error {
+  color: #b42318;
+}
+
+.log-warning {
+  color: #a15c00;
+}
+
+a.row-link:hover {
+  background: #f7faff;
+}

@@ -1,0 +1,37 @@
+services:
+  wscheck:
+    build: .
+    image: wscheck:latest
+    container_name: wscheck
+    restart: unless-stopped
+    ports:
+      # 默认只监听本机；局域网访问时设置 WSCHECK_BIND=0.0.0.0
+      - "${WSCHECK_BIND:-127.0.0.1}:${WSCHECK_PORT:-8080}:8080"
+    environment:
+      WSCHECK_SECRET: "${WSCHECK_SECRET:-wscheck-dev-secret-change-me}"
+      WSCHECK_TZ: "${WSCHECK_TZ:-Asia/Shanghai}"
+      TZ: "${WSCHECK_TZ:-Asia/Shanghai}"
+      WSCHECK_DB: "sqlite:////app/data/wscheck.db"
+      WSCHECK_POC_DIR: /app/pocs
+      WSCHECK_RULES_DIR: /app/rules
+      WSCHECK_DIR_DICT: /app/rules/dicts/dir.yaml
+      WSCHECK_DIR_MAX_PATHS: "${WSCHECK_DIR_MAX_PATHS:-0}"
+      WSCHECK_POC_ALLOW_HEAVY: "${WSCHECK_POC_ALLOW_HEAVY:-0}"
+    volumes:
+      - ./data:/app/data
+      - ./pocs:/app/pocs
+      - ./rules:/app/rules
+    extra_hosts:
+      # 便于扫描宿主机上的本地演练站点（http://host.docker.internal:8999）
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    stop_grace_period: 30s

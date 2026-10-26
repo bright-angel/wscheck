@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}全局设置 · WSCHECK{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">全局设置</h1>
+  <span class="badge text-bg-{{ pocsuite_available and 'success' or 'danger' }}">
+    pocsuite3 {{ pocsuite_available and '可用' or '不可用' }}</span>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body small">
+    <div class="text-muted mb-1">代理、OOB、POC / 指纹规则仓库同步与请求参数会作用于扫描任务与结果页的交互执行；
+      FOFA Key 仅用于新建任务时导入目标。留空的选项不会传给引擎，保持 pocsuite3 自身默认。
+      Token、Key、代理密码等敏感值只写入本地 SQLite，页面不回显。</div>
+    {% if summary %}<div>当前生效：<span class="mono">{{ summary }}</span></div>{% else %}
+      <div class="text-muted">当前没有启用任何外部选项，POC 走直连、dnslog 类脚本会被跳过。</div>{% endif %}
+  </div>
+</div>
+
+<form method="post" class="mb-3">
+  <input type="hidden" name="settings_form" value="1">
+  {% for group in groups %}
+  <div class="card mb-3" id="group-{{ group.key }}">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi {{ group.icon }}"></i><span class="fw-semibold">{{ group.title }}</span>
+      {% if group.key == 'oob' %}
+      <span class="badge text-bg-{{ stats.dnslog_ready and 'success' or 'secondary' }} ms-auto">
+        {{ stats.dnslog }} 个 dnslog 类 POC {{ stats.dnslog_ready and '可执行' or '暂不执行' }}</span>
+      {% elif group.key == 'poc_repo' %}
+      {% if poc_sync.commit %}
+      <span class="badge text-bg-success ms-auto" title="{{ poc_sync.synced_at }}">
+        已同步 {{ poc_sync.commit[:7] }}</span>
+      {% else %}
+      <span class="badge text-bg-secondary ms-auto">未同步</span>
+      {% endif %}
+      {% elif group.key == 'rules_repo' %}
+      {% if rules_sync.commit %}
+      <span class="badge text-bg-success ms-auto" title="{{ rules_sync.synced_at }}">
+        已同步 {{ rules_sync.commit[:7] }}</span>
+      {% else %}
+      <span class="badge text-bg-secondary ms-auto">未同步</span>
+      {% endif %}
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">{{ group.note }}</p>
+      <div class="row g-3">
+        {% for item in group.fields %}
+        {% set current = values.get(item.key, '') %}
+        <div class="col{% if item.kind in ('textarea', 'checkbox') %}-12{% else %}-md-6{% endif %}">
+          {% if item.kind == 'checkbox' %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="{{ item.key }}" id="{{ item.key }}"
+                   value="1"{% if current %} checked{% endif %}>
+            <label class="form-check-label" for="{{ item.key }}">{{ item.label }}</label>
+            <div class="form-text">{{ item.help }}</div>
+          </div>
+          {% else %}
+          <label class="form-label small" for="{{ item.key }}">{{ item.label }}</label>
+          {% if item.kind == 'textarea' %}
+          <textarea class="form-control form-control-sm mono" name="{{ item.key }}" id="{{ item.key }}" rows="3"
+                    placeholder="{{ item.placeholder }}">{{ current }}</textarea>
+          {% elif item.kind == 'password' %}
+          <input class="form-control form-control-sm mono" type="password" name="{{ item.key }}" id="{{ item.key }}"
+                 value="" autocomplete="new-password"
+                 placeholder="{{ '已保存，留空不修改' if current else item.placeholder }}">
+          {% elif item.kind == 'number' %}
+          <input class="form-control form-control-sm mono" type="number" name="{{ item.key }}" id="{{ item.key }}"
+                 min="{{ item.minimum }}" max="{{ item.maximum }}" value="{{ current }}"
+                 placeholder="{{ item.placeholder }}">
+          {% else %}
+          <input class="form-control form-control-sm mono" type="text" name="{{ item.key }}" id="{{ item.key }}"
+                 value="{{ current }}" placeholder="{{ item.placeholder }}">
+          {% endif %}
+          {% if item.kind == 'password' and current %}
+          <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" name="{{ item.key }}_clear" id="{{ item.key }}_clear" value="1">
+            <label class="form-check-label small text-muted" for="{{ item.key }}_clear">清除已保存的值</label>
+          </div>
+          {% endif %}
+          {% if item.help %}<div class="form-text">{{ item.help }}</div>{% endif %}
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  <div class="d-flex gap-2 mb-3">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> 保存设置</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('settings.index') }}">放弃修改</a>
+  </div>
+
+  <div class="card">
+    <div class="card-header fw-semibold"><i class="bi bi-plug me-1"></i>连通性自测</div>
+    <div class="card-body">
+      <div class="text-muted small mb-3">自测按表单里当前填写的值发起，不需要先保存（密码框留空时按已保存的值）；
+        请求超时按 10 秒，失败只提示当前配置不可用，不会写入设置。</div>
+      <div class="row g-3">
+        <div class="col-md-7">
+          <div class="d-flex gap-2">
+            <input class="form-control form-control-sm mono" name="test_url"
+                   placeholder="可选：经代理验证的目标地址，如 http://127.0.0.1:8999/">
+            <button class="btn btn-sm btn-outline-primary text-nowrap" type="submit" name="test" value="proxy">
+              测试代理</button>
+          </div>
+          <div class="form-text">不填地址时只检查代理端口能否连通；已保存的代理：
+            <span class="mono">{{ proxy_display or '未配置' }}</span></div>
+        </div>
+        <div class="col-md-5">
+          <button class="btn btn-sm btn-outline-primary" type="submit" name="test" value="oob">
+            测试 OOB 域名 / CEye</button>
+          <div class="form-text">检查 interactsh 泛解析与注册接口、CEye token 是否有效。</div>
+        </div>
+        <div class="col-md-5">
+          <button class="btn btn-sm btn-outline-primary" type="submit" name="test" value="fofa">
+            测试 FOFA Key</button>
+          <div class="form-text">用 info/my 校验 Key 与账号额度，不消耗搜索次数。</div>
+        </div>
+        <div class="col-md-5">
+          <button class="btn btn-sm btn-outline-primary" type="submit" name="test" value="poc_repo">
+            测试 POC 仓库</button>
+          <div class="form-text">按当前填写的仓库地址与 Token 调用 GitHub API，确认私有仓库可读；
+            不下载压缩包，也不改动本地 POC。</div>
+        </div>
+        <div class="col-md-5">
+          <button class="btn btn-sm btn-outline-primary" type="submit" name="test" value="rules_repo">
+            测试规则仓库</button>
+          <div class="form-text">按当前填写的规则仓库地址与 Token 调用 GitHub API，确认可读；
+            不下载压缩包，也不改动本地规则。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card mt-3">
+  <div class="card-header fw-semibold"><i class="bi bi-box-seam me-1"></i>POC 依赖统计</div>
+  <div class="table-responsive">
+    <table class="table table-fixed mb-0 align-middle" style="--tbl-min:460px">
+      <colgroup><col style="width:34%"><col style="width:14%"><col></colgroup>
+      <thead><tr><th>类型</th><th class="text-end">数量</th><th>是否进扫描</th></tr></thead>
+      <tbody>
+      <tr><td>启用的 POC 总数</td><td class="text-end mono">{{ stats.total }}</td><td class="text-muted small">-</td></tr>
+      <tr><td>弱口令爆破</td><td class="text-end mono">{{ stats.bruteforce }}</td>
+        <td class="small">默认跳过，需要把环境变量 <span class="mono">WSCHECK_POC_ALLOW_HEAVY=1</span> 后重启</td></tr>
+      <tr><td>依赖 OOB 平台（dnslog）</td><td class="text-end mono">{{ stats.dnslog }}</td>
+        <td class="small">{{ stats.dnslog_ready and '已配置 OOB，会进扫描' or '未配置 OOB，跳过' }}</td></tr>
+      <tr><td>依赖搜索引擎（fofa/shodan 等）</td><td class="text-end mono">{{ stats.search }}</td>
+        <td class="small">POC 始终跳过：目标由任务页给定（可从 FOFA 手动导入），POC 不自行拉目标</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

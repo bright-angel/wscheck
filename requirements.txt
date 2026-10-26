@@ -1,0 +1,13 @@
+Flask==3.1.2
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.36
+Jinja2==3.1.5
+requests==2.31.0
+urllib3<2
+# requests 2.31 的依赖自检只接受 chardet <6，pocsuite3 会拉进 7.x 并在启动时告警
+chardet>=3.0.2,<6
+PyYAML>=6.0
+mmh3>=5.0
+cryptography>=43.0
+pocsuite3==2.1.0
+tzdata>=2024.1

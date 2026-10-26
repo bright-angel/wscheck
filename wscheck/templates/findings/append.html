@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">人工补充结果</h1>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('findings.list_findings') }}">返回结果列表</a>
+</div>
+
+{% if error %}<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> {{ error }}</div>{% endif %}
+
+<form method="post" class="card">
+  <div class="card-body row g-3">
+    <div class="col-md-6">
+      <label class="form-label small text-muted">追加到任务</label>
+      <select class="form-select" name="task_id" required>
+        <option value="">请选择任务</option>
+        {% for task in tasks %}
+        <option value="{{ task.id }}"
+          {% if (form.get('task_id') or request.args.get('task_id')) == task.id %}selected{% endif %}>
+          {{ task.name }}（{{ task.created_at | date }}）
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small text-muted">关联 POC（可选，用于继承等级与组件）</label>
+      <select class="form-select" name="poc_id">
+        <option value="">不关联</option>
+        {% for poc in pocs %}
+        <option value="{{ poc.poc_id }}"{% if form.get('poc_id') == poc.poc_id %} selected{% endif %}>
+          {{ poc.poc_id }} · {{ poc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-12">
+      <label class="form-label small text-muted">目标 URL</label>
+      <input class="form-control mono" name="target_url" value="{{ form.get('target_url', '') }}"
+             list="assetUrls" placeholder="https://example.com/path">
+      <datalist id="assetUrls">
+        {% for url in assets %}<option value="{{ url }}"></option>{% endfor %}
+      </datalist>
+      <div class="form-text">
+        {% if assets %}已带出该任务采集到的 {{ assets | length }} 个资产，输入时可直接从下拉里选。{% endif %}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small text-muted">结果名称</label>
+      <input class="form-control" name="poc_name" value="{{ form.get('poc_name', '') }}" placeholder="例如：后台弱口令（人工确认）">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small text-muted">严重等级</label>
+      <select class="form-select" name="severity">
+        {% for value, label in severities.items() %}
+        <option value="{{ value }}"{% if value == (form.get('severity') or 'medium') %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+      <div class="form-check form-switch">
+        {% set verified_checked = form.get('verified') if form else 'on' %}
+        <input class="form-check-input" type="checkbox" role="switch" id="verified" name="verified"
+               {% if verified_checked %}checked{% endif %}>
+        <label class="form-check-label" for="verified">视为已人工确认</label>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <label class="form-label small text-muted">证据 / 复现说明</label>
+      <textarea class="form-control mono" name="evidence" rows="6"
+                placeholder="请求：&#10;GET /admin/login HTTP/1.1&#10;&#10;响应：&#10;200 OK …">{{ form.get('evidence', '') }}</textarea>
+    </div>
+    <div class="col-12">
+      <label class="form-label small text-muted">复核说明</label>
+      <input class="form-control" name="note" value="{{ form.get('note', '') }}" placeholder="判定理由，导出报告时会带上">
+    </div>
+  </div>
+  <div class="card-footer d-flex justify-content-between">
+    <span class="small text-muted">人工补充的结果 source = manual_append，默认计入报告。</span>
+    <button class="btn btn-primary" type="submit">追加结果</button>
+  </div>
+</form>
+{% endblock %}

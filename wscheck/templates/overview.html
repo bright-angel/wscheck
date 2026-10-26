@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stat_card, severity_badge, status_badge with context %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="h4 page-title mb-1">安全检测概览</h1>
+    <div class="text-muted small">指纹驱动 POC 调度 · 任务化扫描 · 结果治理</div>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('tasks.new') }}"><i class="bi bi-plus-lg"></i> 新建扫描任务</a>
+</div>
+
+{% if not pocsuite_available %}
+<div class="alert alert-warning">当前环境未安装 pocsuite3，POC 执行不可用；指纹采集与结果治理仍可正常使用。</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  {{ stat_card('扫描任务', total_tasks, 'bi-list-task', 'primary') }}
+  {{ stat_card('进行中任务', active_tasks, 'bi-play-circle', active_tasks and 'warning' or 'secondary') }}
+  {{ stat_card('有效结果', total_findings, 'bi-bug-fill', total_findings and 'danger' or 'secondary') }}
+  {{ stat_card('待复核', pending_review, 'bi-clipboard-check', pending_review and 'info' or 'secondary') }}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">最近任务</span>
+        <a class="small" href="{{ url_for('tasks.list_tasks') }}">全部任务 <i class="bi bi-chevron-right"></i></a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-fixed mb-0 align-middle" style="--tbl-min:640px">
+          <colgroup>
+            <col><col style="width:84px"><col style="width:64px"><col style="width:64px"><col style="width:150px">
+          </colgroup>
+          <thead><tr><th>任务</th><th>状态</th><th>目标</th><th>结果</th><th>创建时间</th></tr></thead>
+          <tbody>
+          {% for task in recent_tasks %}
+            <tr class="row-link">
+              <td><a href="{{ url_for('tasks.detail', task_id=task.id) }}" class="clip d-block text-decoration-none fw-semibold"
+                     title="{{ task.name }}">{{ task.name }}</a>
+                <div class="mono text-muted small">{{ task.id[:8] }}</div></td>
+              <td>{{ status_badge(task) }}</td>
+              <td>{{ task.target_count }}</td>
+              <td><a href="{{ url_for('findings.list_findings', task_id=task.id) }}">{{ finding_counts.get(task.id, 0) }}</a></td>
+              <td class="text-muted small">{{ task.created_at | dt }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-4">还没有任务，先创建一个扫描任务</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header fw-semibold">最新结果</div>
+      <div class="table-responsive">
+        <table class="table table-fixed mb-0 align-middle" style="--tbl-min:600px">
+          <colgroup>
+            <col style="width:84px"><col style="width:30%"><col><col style="width:88px">
+          </colgroup>
+          <thead><tr><th>等级</th><th>POC</th><th>目标</th><th>校验</th></tr></thead>
+          <tbody>
+          {% for finding in top_findings %}
+            <tr>
+              <td>{{ severity_badge(finding.severity) }}</td>
+              <td class="mono clip" title="{{ finding.poc_id }}">{{ finding.poc_id }}</td>
+              <td class="mono clip" title="{{ finding.target_url }}">{{ finding.target_url }}</td>
+              <td class="small text-muted">{{ VerifyStatus.LABELS.get(finding.verify_status, finding.verify_status) }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="text-center text-muted py-4">暂无结果</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">等级分布</div>
+      <ul class="list-group list-group-flush">
+        {% for level, count in severity_counts.items() %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          {{ severity_badge(level) }}
+          <span class="fw-semibold">{{ count }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header fw-semibold">检测能力</div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between border-bottom py-2">
+          <span class="text-muted">启用的指纹规则</span><a href="{{ url_for('fingerprints.list_rules') }}">{{ rule_count }}</a>
+        </div>
+        <div class="d-flex justify-content-between border-bottom py-2">
+          <span class="text-muted">启用的 POC</span><a href="{{ url_for('pocs.list_pocs') }}">{{ poc_count }}</a>
+        </div>
+        <div class="d-flex justify-content-between py-2">
+          <span class="text-muted">pocsuite3 引擎</span>
+          <span class="badge text-bg-{{ pocsuite_available and 'success' or 'secondary' }}">
+            {{ pocsuite_available and '可用' or '不可用' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

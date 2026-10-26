@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% from "_macros.html" import severity_badge, finding_cells, filter_select, pager, empty with context %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+  <h1 class="h4 page-title mb-0">结果治理</h1>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('findings.append') }}"><i class="bi bi-plus-lg"></i> 人工补充结果</a>
+    <a class="btn btn-sm btn-primary" href="{{ url_for('reports.list_reports') }}"><i class="bi bi-file-earmark-text"></i> 合并报告</a>
+  </div>
+</div>
+
+<form class="filter-bar row g-2 align-items-end mb-3" method="get">
+  {{ filter_select('severity', '严重等级', severities, severity) }}
+  {{ filter_select('review', '复核状态', reviews, review) }}
+  {{ filter_select('verify', '校验状态', verifies, verify) }}
+  {{ filter_select('sort', '排序', sorts, sort, empty=None) }}
+  <div class="col-md-3">
+    <label class="form-label small text-muted mb-1" for="filter-task_id">任务</label>
+    <select class="form-select form-select-sm" name="task_id" id="filter-task_id">
+      <option value="">全部任务</option>
+      {% for task in tasks %}
+      <option value="{{ task.id }}"{% if task.id == task_id %} selected{% endif %}>{{ task.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-9 d-flex gap-2">
+    <input class="form-control form-control-sm flex-grow-1" name="q" value="{{ keyword }}"
+           placeholder="目标 / POC / 组件" aria-label="搜索目标、POC 或组件">
+    <button class="btn btn-sm btn-primary text-nowrap flex-shrink-0"><i class="bi bi-search"></i> 查询</button>
+    <a class="btn btn-sm btn-outline-secondary text-nowrap flex-shrink-0"
+       href="{{ url_for('findings.list_findings') }}">重置</a>
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+    <div class="form-check me-2">
+      <input class="form-check-input" type="checkbox" id="checkAll">
+      <label class="form-check-label small" for="checkAll">全选本页</label>
+    </div>
+    <span class="small text-muted me-2">已选 <b id="selectionCount" class="text-dark">0</b> 项</span>
+    <form id="batchForm" method="post" action="{{ url_for('findings.batch') }}"
+          class="d-flex flex-wrap gap-2 align-items-center" data-collect-ids>
+      <select class="form-select form-select-sm" name="action" style="width:160px">
+        <option value="false_positive">标记为误报</option>
+        <option value="confirm">标记为确认有效</option>
+        <option value="reset">恢复待复核</option>
+        <option value="delete">删除结果</option>
+      </select>
+      <input class="form-control form-control-sm" name="note" placeholder="复核说明（可选）" style="width:220px">
+      <button class="btn btn-sm btn-primary" type="submit">批量处理</button>
+    </form>
+    <form method="post" action="{{ url_for('findings.export_selected') }}"
+          class="d-flex gap-1 align-items-center" data-collect-ids>
+      <select class="form-select form-select-sm" name="fmt" style="width:96px" title="导出格式">
+        {% for value, label in formats.items() %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm btn-outline-secondary" type="submit">
+        <i class="bi bi-download"></i> 导出选中</button>
+    </form>
+    <span class="small text-muted ms-auto">勾选行后可批量复核、删除或导出</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-fixed mb-0 align-middle" style="--tbl-min:1250px">
+      <colgroup>
+        <col style="width:34px"><col style="width:72px"><col style="width:250px"><col style="width:246px">
+        <col style="width:70px"><col style="width:74px"><col style="width:70px"><col style="width:118px">
+        <col style="width:200px"><col style="width:116px">
+      </colgroup>
+      <thead><tr><th></th><th>等级</th><th>POC</th><th>目标</th><th>校验</th>
+        <th>复核</th><th>来源</th><th>发现时间</th><th>交互</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+      {% for finding in pagination.items %}
+      <tr>
+        <td><input class="form-check-input rowCheck" type="checkbox" name="ids" form="batchForm"
+                   value="{{ finding.id }}" aria-label="选择结果 {{ finding.id }}"></td>
+        <td>{{ severity_badge(finding.severity) }}</td>
+        {{ finding_cells(finding, poc_caps, source=True) }}
+        <td class="text-end">
+          <div class="d-flex flex-wrap gap-1 justify-content-end">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('findings.detail', finding_id=finding.id) }}">详情</a>
+            <form method="post" action="{{ url_for('findings.review', finding_id=finding.id) }}">
+              <input type="hidden" name="action"
+                     value="{{ finding.review_status != 'false_positive' and 'false_positive' or 'reset' }}">
+              <button class="btn btn-sm {{ finding.review_status != 'false_positive' and 'btn-outline-dark' or 'btn-outline-secondary' }}">
+                {{ finding.review_status != 'false_positive' and '误报' or '恢复' }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10">{{ empty('暂无符合条件的结果') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ pager(pagination, 'findings.list_findings',
+  {'q': keyword or '', 'severity': severity or '', 'review': review or '', 'verify': verify or '',
+   'task_id': task_id or '', 'sort': sort}) }}
+{% endblock %}
