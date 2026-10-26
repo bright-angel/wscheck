@@ -344,7 +344,9 @@ def _probe_one(engine, target, timeout: int, user_agent: str, body_limit: int,
                    proxies=proxies)
     hits, app_names = ({}, []) if result.error else engine.identify(result.signals())
     return TargetAsset(
-        url=result.final_url or target.url,
+        # 资产 URL 必须是输入的规范化地址：POC 以它为根拼接接口路径，用跳转后的
+        # result.final_url（如 /users/sign_in）会让所有 POC 请求落到错误的路径上
+        url=target.url,
         scheme=target.scheme,
         host=target.host,
         port=result.port or target.port,
