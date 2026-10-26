@@ -169,7 +169,8 @@ python tools/migrate_webfinger.py --src C:/path/to/webfinger.yaml --out rules/we
 使用 `app`/`product` 字段的组合规则。新建任务页的规则 / POC 勾选改为搜索式选择器
 （`/tasks/picker`），避免渲染七千余个复选框。
 
-POC 自动筛选按归一化名称（去大小写、去分隔符，保留中文）比对指纹 `app_name` 与 POC `appName`，
+POC 自动筛选按归一化名称（去大小写、去分隔符，保留中文）比对指纹 `app_name` 与 POC `appName`；
+两者都可以用英文逗号声明多个应用名（如 `appName=GitLab,Jenkins`），拆开后任意一个对上即选中，
 例如指纹 `Spring Boot` 可命中 `appName=SpringBoot` 的 POC。指纹扫描 / 全指纹扫描不执行 POC；
 指纹漏洞模式对未识别到指纹的目标回落到全量 POC（同样跳过爆破、依赖 OOB 与引擎不加载的脚本），
 专项模式只认手工勾选，未勾选时才按指纹匹配。

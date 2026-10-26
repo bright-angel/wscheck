@@ -7,6 +7,7 @@ import threading
 from dataclasses import dataclass, field
 
 from . import grammar
+from .naming import canonical_app, split_app_names
 
 
 def normalize(signals: dict[str, str]) -> dict[str, str]:
@@ -73,6 +74,7 @@ class FingerprintEngine:
         self._asts: dict[str, tuple] = {}
         self._errors: dict[str, str] = {}
         self._labels: dict[str, str] = {}
+        self._app_labels: dict[str, str] = {}
         self._literals: dict[tuple, tuple] = {}
         self._app_rules: list[CompiledRule] = []
         for source in rules:
@@ -86,6 +88,7 @@ class FingerprintEngine:
             )
             self.rules.append(rule)
             self._labels[rule.id] = rule.app_name or rule.name or rule.id
+            self._app_labels[rule.id] = rule.app_name
             try:
                 ast = grammar.parse(rule.expr)
             except grammar.ParseError as error:
@@ -135,7 +138,20 @@ class FingerprintEngine:
         return hits, app_names
 
     def _names_of(self, hits: dict[str, EvalResult]) -> list[str]:
-        return sorted({self._labels[rid] for rid in hits if self._labels.get(rid)})
+        # 规则的 app_name 可以是 "GitLab,Jenkins"：拆开后再作为资产应用名，
+        # 否则 POC 按单个应用名匹配时整串永远对不上。没有 app_name 的规则
+        # 仍退回展示名，但不能按逗号拆规则标题
+        names: dict[str, str] = {}
+        for rule_id in hits:
+            parts = split_app_names(self._app_labels.get(rule_id))
+            if not parts:
+                label = self._labels.get(rule_id)
+                parts = [label] if label else []
+            for part in parts:
+                key = canonical_app(part)
+                if key:
+                    names.setdefault(key, part)
+        return sorted(names.values())
 
     def _evaluate_ast(self, rule, signals: dict[str, str]) -> EvalResult:
         ast = self._asts.get(rule.id)

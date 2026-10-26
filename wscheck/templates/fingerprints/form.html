@@ -18,9 +18,9 @@
       <input class="form-control" name="name" value="{{ data.get('name', '') }}" placeholder="WordPress">
     </div>
     <div class="col-md-4">
-      <label class="form-label small text-muted">映射 appName（用于 POC 自动筛选）</label>
+      <label class="form-label small text-muted">映射 appName（用于 POC 自动筛选，多个用英文逗号分隔）</label>
       <input class="form-control mono" name="app_name" value="{{ data.get('app_name', '') }}"
-             placeholder="wordpress">
+             placeholder="wordpress,nacos">
     </div>
 
     <div class="col-12">

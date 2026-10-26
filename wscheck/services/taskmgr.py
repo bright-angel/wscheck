@@ -16,7 +16,7 @@ from ..models import (OOB_KIND_LABELS, PocRegistry, ReviewStatus, ScanFinding, S
 from ..timeutil import utcnow
 from ..util import int_value
 from . import normalize, settings
-from .fingerprint import canonical_app, directory, engine_for
+from .fingerprint import app_keys, canonical_app, directory, engine_for
 from .fingerprint.signals import probe
 from .poc import runner, verify
 
@@ -436,8 +436,11 @@ def _merge_directory(asset: TargetAsset, result, entries: list[tuple[str, str]])
     if added:
         entries.append(("info", f"{asset.url} 报错页补充指纹：{'、'.join(added[:6])}"))
     names = list(asset.app_names or [])
+    seen = {canonical_app(name) for name in names}
     for name in result.apps:
-        if name not in names:
+        key = canonical_app(name)
+        if key and key not in seen:
+            seen.add(key)
             names.append(name)
     asset.app_names = names
     if not result.hits:
@@ -457,7 +460,11 @@ def _select_pocs(task: ScanTask, assets, options: TaskOptions) -> list[PocRegist
 
 def _pick_pocs(task: ScanTask, assets,
                options: TaskOptions) -> tuple[list[PocRegistry], str]:
-    """按模式选 POC：手工勾选优先；否则用指纹 appName 匹配（大小写、分隔符归一）。"""
+    """按模式选 POC：手工勾选优先；否则用指纹 appName 匹配。
+
+    POC 与指纹规则的 appName 都可以是英文逗号分隔的多个名称，
+    比较前统一小写、去掉标点，任意一项相同即视为匹配。
+    """
     # pocsuite3 的加载器只认正文里出现 register_poc / matchers 的脚本，其余文件不会被注册，
     # 交给引擎也只是白等一轮批次
     registry = PocRegistry.query.filter_by(enabled=1).all()
@@ -471,8 +478,8 @@ def _pick_pocs(task: ScanTask, assets,
         chosen = [p for p in enabled if p.poc_id in wanted]
         return chosen, "手工指定"
 
-    apps = {canonical_app(name) for asset in assets for name in (asset.app_names or [])}
-    chosen = [p for p in enabled if canonical_app(p.app_name) in apps]
+    apps = {key for asset in assets for name in (asset.app_names or []) for key in app_keys(name)}
+    chosen = [p for p in enabled if app_keys(p.app_name) & apps]
     chosen = _drop_heavy(task, chosen)
     if not chosen and apps:
         log(task.id, "info", "指纹已识别，但没有 POC 的 appName 与之匹配，本次不执行 POC")

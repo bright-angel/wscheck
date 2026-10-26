@@ -1,52 +1,35 @@
 from __future__ import annotations
 
-import re
-
 from flask import current_app
 
 from ...extensions import db
 from ...models import FingerprintRule
 from .engine import EvalResult, FingerprintEngine, get_engine, invalidate
 from .grammar import ParseError, describe, parse
+from .naming import app_keys, canonical_app, related_app, related_keys, split_app_names
 from .signals import ProbeResult, probe
 
 __all__ = [
     "EvalResult", "FingerprintEngine", "ProbeResult", "ParseError", "app_rule_counts",
-    "canonical_app", "describe", "engine_for", "engine_from_db", "invalidate", "parse",
-    "probe", "related_app",
+    "app_keys", "canonical_app", "describe", "engine_for", "engine_from_db", "invalidate",
+    "parse", "probe", "related_app", "split_app_names",
 ]
-
-
-def canonical_app(name: str) -> str:
-    return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", (name or "").lower())
-
-
-def _related_keys(left: str, right: str) -> bool:
-    if not left or not right:
-        return False
-    if left == right:
-        return True
-    return len(left) >= 4 and len(right) >= 4 and (left in right or right in left)
-
-
-def related_app(left: str, right: str) -> bool:
-    """两个应用名是否指同一产品（容忍厂商前缀、空格与连字符差异）。"""
-    return _related_keys(canonical_app(left), canonical_app(right))
 
 
 def app_rule_counts(names) -> dict[str, int]:
     """应用名 → 关联的启用指纹规则数，供 POC 库标注组件是否有对应指纹。"""
-    wanted = {name: canonical_app(name) for name in names if name}
+    wanted = [(name, app_keys(name)) for name in names if name]
     if not wanted:
         return {}
-    rule_keys: dict[str, int] = {}
+    rule_keys = []
     for (rule_app,) in db.session.query(FingerprintRule.app_name).filter(FingerprintRule.enabled == 1):
-        key = canonical_app(rule_app)
-        if key:
-            rule_keys[key] = rule_keys.get(key, 0) + 1
+        keys = app_keys(rule_app)
+        if keys:
+            rule_keys.append(keys)
     return {
-        name: sum(count for key, count in rule_keys.items() if _related_keys(canon, key))
-        for name, canon in wanted.items()
+        name: sum(1 for keys in rule_keys
+                  if any(related_keys(left, right) for left in wanted_keys for right in keys))
+        for name, wanted_keys in wanted
     }
 
 
